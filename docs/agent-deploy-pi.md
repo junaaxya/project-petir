@@ -33,30 +33,25 @@ LANGKAH:
    (opsional minimal: `bash scripts/bootstrap-edge.sh --sparse` agar hanya folder edge ter-checkout)
 2. Pastikan Python 3.11+ tersedia.
 3. Konfigurasi: `cp edge/.env.example edge/.env` lalu isi:
-   - SERVER_URL=https://petir.lab-ilkom.my.id   (TANYA operator domain-nya; ini URL publik, bukan IP)
-   - NODE_ID=rpi-lab-01                                      (atau id yang diberikan operator)
-   - NODE_TOKEN=<token dari server>                          (operator menjalankan register_node.py di server, lalu memberi token ini SEKALI)
+   - SERVER_URL=https://petir.lab-ilkom.my.id   (URL publik domain, bukan IP)
+   - NODE_ID=rpi-lab-01                          (atau id yang diberikan operator)
+   - NODE_TOKEN=<token dari server>              (operator menjalankan register_node.py di server, lalu memberi token ini SEKALI)
    - EDGE_DB_PATH=/home/pi/weather-edge/data/db/weather_edge.db
-4. REKONSILIASI PATH SYSTEMD (PENTING — ada gap yang harus kamu tangani):
-   Unit `edge/systemd/petir-sync.service` meng-hardcode:
-     WorkingDirectory=/opt/petir/edge, EnvironmentFile=/opt/petir/edge/.env, User=petir,
-     ExecStart=/opt/petir/edge/.venv/bin/python -m sync_worker.run
-   Sementara bootstrap menaruh venv di /opt/petir/edge/.venv tapi kode+`.env` ada di clone repo.
-   Maka SEBELUM enable timer, pastikan KONSISTEN:
-     a. Pastikan user `petir` ADA (atau ubah `User=` di unit ke user yang menjalankan, mis. `pi`).
-        Jika ubah, lakukan di file unit SEBELUM install, dan catat perubahannya.
-     b. Pastikan /opt/petir/edge/.env ADA dan berisi konfigurasi dari langkah 3
-        (cara aman: symlink `sudo ln -s ~/project-petir/edge/.env /opt/petir/edge/.env`,
-        ATAU copy). EnvironmentFile harus bisa dibaca oleh User di unit.
-     c. Pastikan EDGE_DB_PATH bisa dibaca user tersebut.
-5. `bash scripts/bootstrap-edge.sh`
-   (membuat venv di /opt/petir/edge/.venv, install petir-contracts+edge, validasi .env,
-    migrasi DB live BACKUP-FIRST + idempotent, lalu 1x dry-run sync.
-    Dry-run exit: 0=ok, 1=partial, 2=failed — laporkan kodenya.)
-6. `sudo bash scripts/install-edge-systemd.sh`
-   (install + enable HANYA petir-sync.timer; tidak menyentuh service ingest.)
+4. `bash scripts/bootstrap-edge.sh`
+   (membuat venv DI DALAM repo: <repo>/edge/.venv — TIDAK pakai /opt, TIDAK butuh user khusus.
+    Install petir-contracts+edge, validasi .env, migrasi DB live BACKUP-FIRST + idempotent,
+    lalu 1x dry-run sync. Dry-run exit: 0=ok, 1=partial, 2=failed — laporkan kodenya.)
+5. `sudo bash scripts/install-edge-systemd.sh`
+   (Unit systemd DI-GENERATE otomatis dari layout mesin ini: User/Group = pemanggil sudo
+    (yaitu `pi`), WorkingDirectory = <repo>/edge, venv & EnvironmentFile dari repo. TIDAK ada
+    hardcode /opt atau user `petir`. Install + enable HANYA petir-sync.timer; tidak menyentuh
+    service ingest.)
+   - Jika perlu override eksplisit: `sudo PETIR_SERVICE_USER=pi bash scripts/install-edge-systemd.sh`
+   - Verifikasi unit yang ter-generate: `systemctl cat petir-sync.service`
+     (pastikan User=pi, WorkingDirectory & paths mengarah ke clone repo, BUKAN /opt).
 
 VERIFIKASI (wajib lapor hasilnya):
+- `systemctl cat petir-sync.service` → User=pi, path ke <repo>/edge (bukan /opt/petir).
 - `systemctl is-active weather-ingest lightning-ingest`  → harus tetap `active` (TIDAK terganggu)
 - `sudo systemctl start petir-sync.service && journalctl -u petir-sync.service -n 50 --no-pager`
 - `systemctl list-timers petir-sync.timer --no-pager`    → timer terjadwal

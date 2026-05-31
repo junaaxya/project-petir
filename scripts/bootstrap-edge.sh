@@ -8,11 +8,15 @@
 # repo stays ONE repo so the wire contract never drifts between Pi and server.
 set -euo pipefail
 
-PREFIX="${PETIR_EDGE_PREFIX:-/opt/petir/edge}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EDGE_DIR="${REPO_ROOT}/edge"
 CONTRACTS_DIR="${REPO_ROOT}/packages/contracts"
 ENV_FILE="${EDGE_DIR}/.env"
+
+# venv lives inside the clone by default (no /opt assumption, no special user).
+# Override with PETIR_EDGE_PREFIX only if you deliberately want it elsewhere.
+PREFIX="${PETIR_EDGE_PREFIX:-${EDGE_DIR}}"
+VENV_DIR="${PREFIX}/.venv"
 
 SPARSE="${PETIR_SPARSE:-0}"
 for arg in "$@"; do
@@ -37,20 +41,20 @@ fi
 [ -d "${EDGE_DIR}" ] || die "edge dir not found: ${EDGE_DIR}"
 [ -d "${CONTRACTS_DIR}" ] || die "contracts dir not found: ${CONTRACTS_DIR}"
 
-# 1. Python venv under the deploy prefix (prefer uv, fall back to venv+pip).
+# 1. Python venv (prefer uv, fall back to venv+pip).
 if command -v uv >/dev/null 2>&1; then
-  log "creating venv with uv at ${PREFIX}/.venv"
+  log "creating venv with uv at ${VENV_DIR}"
   mkdir -p "${PREFIX}"
-  uv venv "${PREFIX}/.venv"
+  uv venv "${VENV_DIR}"
   # shellcheck disable=SC1091
-  source "${PREFIX}/.venv/bin/activate"
+  source "${VENV_DIR}/bin/activate"
   uv pip install -e "${CONTRACTS_DIR}" -e "${EDGE_DIR}"
 else
-  log "uv not found; using python venv + pip at ${PREFIX}/.venv"
+  log "uv not found; using python venv + pip at ${VENV_DIR}"
   mkdir -p "${PREFIX}"
-  python3 -m venv "${PREFIX}/.venv"
+  python3 -m venv "${VENV_DIR}"
   # shellcheck disable=SC1091
-  source "${PREFIX}/.venv/bin/activate"
+  source "${VENV_DIR}/bin/activate"
   pip install --upgrade pip >/dev/null
   pip install -e "${CONTRACTS_DIR}" -e "${EDGE_DIR}"
 fi

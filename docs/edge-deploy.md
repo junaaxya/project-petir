@@ -13,9 +13,9 @@ How to roll out the PetirDashboard sync worker on the **live** Raspberry Pi. The
 
 ## What gets installed
 
-- A venv under `/opt/petir/edge/.venv` (override with `PETIR_EDGE_PREFIX`) with `petir-edge` + `petir-contracts`. The dashboard build toolchain (Node, web) is **not** installed — the edge stays lightweight.
+- A venv inside the clone at `<repo>/edge/.venv` (override with `PETIR_EDGE_PREFIX`) with `petir-edge` + `petir-contracts`. The dashboard build toolchain (Node, web) is **not** installed — the edge stays lightweight.
 - Additive DB objects: `meta`, `sync_state`, `change_seq` + triggers (see [edge-migration.md](./edge-migration.md)).
-- `petir-sync.service` (Type=oneshot) + `petir-sync.timer` (`OnUnitActiveSec=15s`).
+- `petir-sync.service` (Type=oneshot) + `petir-sync.timer` (`OnUnitActiveSec=15s`). The service unit is **generated** by `install-edge-systemd.sh` from this machine's real layout (service user = the invoking sudo user, e.g. `pi`; paths = the clone). No `/opt` or special-user assumptions.
 
 ## Steps
 

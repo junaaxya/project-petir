@@ -1,23 +1,49 @@
 #!/usr/bin/env bash
-# Install + enable the PetirDashboard edge sync systemd timer on a Raspberry Pi.
+# Install + enable the PetirDashboard edge sync systemd timer.
+# The service unit is GENERATED from this machine's actual layout (user, repo
+# path, venv) — no /opt or special-user assumptions. Override via env vars below.
+#
 # SAFETY: enables ONLY petir-sync.timer. It never stops, restarts, disables, or
 # modifies the existing weather-ingest / lightning-ingest services.
 set -euo pipefail
 
-PREFIX="${PETIR_EDGE_PREFIX:-/opt/petir/edge}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UNIT_SRC="${REPO_ROOT}/edge/systemd"
+EDGE_DIR="${REPO_ROOT}/edge"
+UNIT_SRC="${EDGE_DIR}/systemd"
 SYSTEMD_DIR="/etc/systemd/system"
+
+# venv location must match bootstrap-edge.sh (defaults to <repo>/edge/.venv).
+PREFIX="${PETIR_EDGE_PREFIX:-${EDGE_DIR}}"
+VENV_PY="${PREFIX}/.venv/bin/python"
+ENV_FILE="${EDGE_DIR}/.env"
+
+# Service user/group: default to the invoking (non-root) user so the unit runs
+# as the same account that owns the repo and the live DB (e.g. pi), not root.
+SERVICE_USER="${PETIR_SERVICE_USER:-${SUDO_USER:-$(id -un)}}"
+SERVICE_GROUP="${PETIR_SERVICE_GROUP:-$(id -gn "${SERVICE_USER}")}"
 
 log() { printf '[install-edge-systemd] %s\n' "$*"; }
 die() { printf '[install-edge-systemd] ERROR: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "must run as root (use sudo)"
-[ -f "${UNIT_SRC}/petir-sync.service" ] || die "missing ${UNIT_SRC}/petir-sync.service"
+[ -f "${UNIT_SRC}/petir-sync.service.tmpl" ] || die "missing ${UNIT_SRC}/petir-sync.service.tmpl"
 [ -f "${UNIT_SRC}/petir-sync.timer" ] || die "missing ${UNIT_SRC}/petir-sync.timer"
-[ -x "${PREFIX}/.venv/bin/python" ] || die "venv not found at ${PREFIX}/.venv; run bootstrap-edge.sh first"
+[ -x "${VENV_PY}" ] || die "venv python not found at ${VENV_PY}; run bootstrap-edge.sh first"
+[ -f "${ENV_FILE}" ] || die "env file not found at ${ENV_FILE}; copy edge/.env.example to edge/.env"
+id "${SERVICE_USER}" >/dev/null 2>&1 || die "service user does not exist: ${SERVICE_USER}"
 
-install -m 0644 "${UNIT_SRC}/petir-sync.service" "${SYSTEMD_DIR}/petir-sync.service"
+log "generating unit with: User=${SERVICE_USER} Group=${SERVICE_GROUP} WorkingDirectory=${EDGE_DIR}"
+
+# Render the template into the systemd dir, substituting this machine's values.
+sed \
+  -e "s#__SERVICE_USER__#${SERVICE_USER}#g" \
+  -e "s#__SERVICE_GROUP__#${SERVICE_GROUP}#g" \
+  -e "s#__EDGE_DIR__#${EDGE_DIR}#g" \
+  -e "s#__VENV_PYTHON__#${VENV_PY}#g" \
+  -e "s#__ENV_FILE__#${ENV_FILE}#g" \
+  "${UNIT_SRC}/petir-sync.service.tmpl" > "${SYSTEMD_DIR}/petir-sync.service"
+chmod 0644 "${SYSTEMD_DIR}/petir-sync.service"
+
 install -m 0644 "${UNIT_SRC}/petir-sync.timer" "${SYSTEMD_DIR}/petir-sync.timer"
 log "installed petir-sync.service and petir-sync.timer"
 

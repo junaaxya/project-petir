@@ -134,7 +134,7 @@ Files: `edge/.env.example`, `docs/edge-deploy.md`, `scripts/bootstrap-edge.sh`, 
 
 Tasks:
 - `edge/.env.example`: `SERVER_URL`, `NODE_ID`, `NODE_TOKEN`, `EDGE_DB_PATH=/home/pi/weather-edge/data/db/weather_edge.db`, batch sizes, timer interval, log level. No real secrets.
-- `scripts/bootstrap-edge.sh`: create venv under `/opt/petir/edge` (uv), install the edge package + `packages/contracts`, run migration `apply.py` (with backup), validate `.env`. Idempotent; safe to re-run.
+- `scripts/bootstrap-edge.sh`: create venv inside the clone at `<repo>/edge/.venv` (uv or venv+pip), install the edge package + `packages/contracts`, run migration `apply.py` (with backup), validate `.env`. Idempotent; safe to re-run.
 - `scripts/install-edge-systemd.sh`: copy `petir-sync.{service,timer}` into systemd, `daemon-reload`, enable + start the **timer only**. Explicitly does **not** stop or alter `weather-ingest` / `lightning-ingest`.
 - `docs/edge-deploy.md`: step-by-step Pi rollout — prerequisites, backup, bootstrap, migration, dry-run (`python -m sync_worker.run` once), enable timer, verify on server Health page, rollback procedure.
 

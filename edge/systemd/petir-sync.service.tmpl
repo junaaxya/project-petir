@@ -5,8 +5,9 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-User=petir
-WorkingDirectory=/opt/petir/edge
-ExecStart=/opt/petir/edge/.venv/bin/python -m sync_worker.run
-EnvironmentFile=/opt/petir/edge/.env
+User=__SERVICE_USER__
+Group=__SERVICE_GROUP__
+WorkingDirectory=__EDGE_DIR__
+ExecStart=__VENV_PYTHON__ -m sync_worker.run
+EnvironmentFile=__ENV_FILE__
 TimeoutStartSec=60
