@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   output: "standalone",
   async rewrites() {
-    const target = process.env.API_PROXY_TARGET ?? "http://localhost:8000";
+    const target = process.env.API_PROXY_TARGET || "http://server:8000";
     return [
       {
         source: "/api/:path*",
