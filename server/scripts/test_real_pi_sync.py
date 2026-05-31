@@ -17,10 +17,10 @@ from sync_worker.tables import PRIORITY_ORDER
 from petir_contracts import CursorStrategy
 
 config = Config(
-    server_url="http://127.0.0.1:8000",
-    node_id="rpi-lab-01",
-    node_token="dev-token",
-    edge_db_path="/tmp/weather_copy.db",
+    server_url=os.environ.get("SYNC_REPLAY_SERVER_URL", "http://127.0.0.1:8000"),
+    node_id=os.environ.get("SYNC_REPLAY_NODE_ID", "rpi-lab-01"),
+    node_token=os.environ.get("SYNC_REPLAY_NODE_TOKEN", "dev-token"),
+    edge_db_path=os.environ.get("SYNC_REPLAY_EDGE_DB_PATH", "/tmp/weather_copy.db"),
     request_timeout_s=30.0,
     max_retries=2,
     backoff_base_s=1.0,
