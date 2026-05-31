@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import type { LightningEvent } from "@/lib/api";
 import type { LightningEventType } from "@contracts";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
-import { InfoTooltip } from "@/components/common/InfoTooltip";
 
 function fmtTs(ts: string): string {
   return new Date(ts).toLocaleString([], {
@@ -28,13 +26,6 @@ const EVENT_TYPE_COLORS: Record<LightningEventType, string> = {
   disturber: "text-indigo-400",
   noise: "text-slate-400",
 };
-
-const FILTER_OPTIONS: { label: string; value: LightningEventType | "all" }[] = [
-  { label: "Semua", value: "all" },
-  { label: "Petir", value: "lightning" },
-  { label: "Gangguan", value: "disturber" },
-  { label: "Derau", value: "noise" },
-];
 
 const CSV_COLUMNS: { key: keyof LightningEvent; label: string }[] = [
   { key: "ts_pi_utc", label: "Waktu" },
@@ -70,11 +61,6 @@ interface LightningEventsTableProps {
 }
 
 export function LightningEventsTable({ items, loading }: LightningEventsTableProps) {
-  const [filter, setFilter] = useState<LightningEventType | "all">("all");
-
-  const filtered =
-    filter === "all" ? items : items.filter((e) => e.event_type === filter);
-
   if (loading) {
     return (
       <Card>
@@ -85,41 +71,28 @@ export function LightningEventsTable({ items, loading }: LightningEventsTablePro
 
   return (
     <Card>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-          Kejadian Terbaru
-          <span className="ml-2 font-normal normal-case">({filtered.length} baris)</span>
-        </p>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
-            {FILTER_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setFilter(opt.value)}
-                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  filter === opt.value
-                    ? "bg-blue-600 text-white"
-                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => exportCsv(filtered)}
-            disabled={filtered.length === 0}
-            className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-text)] transition-colors hover:border-blue-500 hover:text-blue-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--color-border)] disabled:hover:text-[var(--color-text)]"
-          >
-            Ekspor CSV
-          </button>
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+            Sambaran Terbaru
+            <span className="ml-2 font-normal normal-case">({items.length} kejadian)</span>
+          </p>
+          <p className="mt-0.5 text-[10px] text-[var(--color-text-muted)]">
+            Hanya sambaran petir yang tercatat sebagai kejadian individual
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => exportCsv(items)}
+          disabled={items.length === 0}
+          className="shrink-0 self-start rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] transition-colors hover:border-blue-500 hover:text-blue-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--color-border)] disabled:hover:text-[var(--color-text)] sm:self-auto sm:py-1"
+        >
+          Ekspor CSV
+        </button>
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState message="Tidak ada kejadian" detail="Tidak ada kejadian yang cocok dengan filter saat ini." />
+      {items.length === 0 ? (
+        <EmptyState message="Belum ada sambaran" detail="Sensor belum mendeteksi sambaran petir. Info gangguan dan derau tersedia di tabel ringkasan di atas." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -129,13 +102,7 @@ export function LightningEventsTable({ items, loading }: LightningEventsTablePro
                   Waktu
                 </th>
                 <th className="pb-2 text-left text-xs font-medium text-[var(--color-text-muted)]">
-                  <span className="inline-flex items-center gap-1">
-                    Tipe
-                    <InfoTooltip
-                      text="Petir = sambaran asli · Gangguan = interferensi buatan manusia · Derau = derau latar tinggi"
-                      label="Keterangan tipe kejadian"
-                    />
-                  </span>
+                  Tipe
                 </th>
                 <th className="pb-2 text-right text-xs font-medium text-[var(--color-text-muted)]">
                   Jarak (km)
@@ -149,7 +116,7 @@ export function LightningEventsTable({ items, loading }: LightningEventsTablePro
               </tr>
             </thead>
             <tbody>
-              {filtered.map((event) => {
+              {items.map((event) => {
                 const typeColor =
                   event.event_type ? EVENT_TYPE_COLORS[event.event_type] : "text-[var(--color-text-muted)]";
                 const typeLabel =

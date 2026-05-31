@@ -16,7 +16,7 @@ export function InfoTooltip({ text, label }: InfoTooltipProps) {
       </span>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs leading-relaxed text-[var(--color-text)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 whitespace-normal"
+        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-56 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs leading-relaxed text-[var(--color-text)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 whitespace-normal"
       >
         {text}
       </span>

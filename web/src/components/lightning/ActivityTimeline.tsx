@@ -113,7 +113,7 @@ export function ActivityTimeline({ series, loading }: ActivityTimelineProps) {
         Linimasa Aktivitas
         <InfoTooltip text={TIMELINE_INFO} label="Keterangan linimasa aktivitas" />
       </p>
-      <ReactECharts option={option} style={{ height: 200 }} />
+      <ReactECharts option={option} style={{ height: "clamp(160px, 30vw, 220px)" }} />
     </Card>
   );
 }
