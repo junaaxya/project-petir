@@ -25,20 +25,23 @@ domain publik) meneruskan request masuk melalui tunnel itu. Jadi:
  Arduino → weather_edge.db (SQLite)                                 cloudflared  (outbound tunnel)
  sync worker (systemd, single-run)                                       │
         │  HTTPS POST (outbound)                                          ▼
-        │  https://petir.lab-ilkom.my.id/api/ingest/sync-batch            nginx (host)
-        └───────────────────────────►  [ petir.lab-ilkom.my.id ] ──tunnel──►  ├─ /api/*  → server:8000  (FastAPI)
-                                            domain publik                └─ /*      → web:3000     (Next.js)
+        │  https://petir.lab-ilkom.my.id/api/ingest/sync-batch       web:3000  (Next.js)
+        └───────────────────────────►  [ petir.lab-ilkom.my.id ] ──tunnel──►  ├─ /        → dashboard
+                                            domain publik                      └─ /api/*   → proxy ke
+                                                                                  server:8000 (FastAPI)
                                                                         docker compose:
                                                                           postgres + server + web
 ```
 
-Kedua mesin **hanya membuat koneksi keluar**. Cloudflare adalah titik temu publik.
-**Tidak perlu** IP publik, port forwarding, atau VPN. Pi cukup tahu URL
-`https://petir.lab-ilkom.my.id`.
+Tunnel mengarah **langsung ke web:3000 (Next.js)**. Next.js mem-proxy `/api/*` ke
+`server:8000` secara internal (lewat `rewrites()` di `next.config.mjs`), jadi
+**nginx tidak diperlukan** untuk hostname ini. Kedua mesin **hanya membuat koneksi
+keluar**. Cloudflare adalah titik temu publik. **Tidak perlu** IP publik, port
+forwarding, atau VPN. Pi cukup tahu URL `https://petir.lab-ilkom.my.id`.
 
 ### Tiga syarat yang harus benar
-1. Cloudflare Tunnel meng-expose path `/api/` ke nginx → `server:8000` (bukan hanya
-   dashboard). Lihat [nginx-cloudflare.md](./nginx-cloudflare.md).
+1. Cloudflare Tunnel ingress hostname → `http://localhost:3000` (web container).
+   Next.js otomatis mem-proxy `/api/*` ke server. Lihat [nginx-cloudflare.md](./nginx-cloudflare.md).
 2. Pi punya akses internet keluar (HTTPS 443 ke Cloudflare). Biasanya sudah ada.
 3. `SERVER_URL` di `edge/.env` = `https://petir.lab-ilkom.my.id` (domain tunnel, bukan IP).
 

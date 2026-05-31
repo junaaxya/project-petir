@@ -35,12 +35,16 @@ docker compose logs server    # confirm "alembic upgrade head" ran to 0004
   `/api` paths (same origin via nginx). It is baked at **build** time via a
   Docker build ARG; changing it requires a rebuild (`docker compose build web`).
 
-## 2. nginx + Cloudflare Tunnel (host)
+## 2. Cloudflare Tunnel (host)
 
-- [ ] nginx proxies `/api/` → `127.0.0.1:8000` and `/` → `127.0.0.1:3000`.
-- [ ] `cloudflared` ingress points the public hostname at nginx (`http://localhost:80`).
-- [ ] Browse `https://petir.lab-ilkom.my.id` → dashboard loads; `https://petir.lab-ilkom.my.id/api/health/latest`
-      responds. Full config in [nginx-cloudflare.md](./nginx-cloudflare.md).
+- [ ] `cloudflared` ingress points the public hostname directly at the web
+      container: `petir.lab-ilkom.my.id` → `http://localhost:3000`.
+- [ ] No nginx needed: Next.js proxies `/api/*` to `server:8000` internally
+      (`rewrites()` in `web/next.config.mjs`, `API_PROXY_TARGET=http://server:8000`
+      set in compose).
+- [ ] Browse `https://petir.lab-ilkom.my.id` → dashboard loads;
+      `https://petir.lab-ilkom.my.id/api/health/latest` responds (proxied through
+      Next.js). Full config in [nginx-cloudflare.md](./nginx-cloudflare.md).
 
 ## 3. Register the edge node → get its token
 

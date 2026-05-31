@@ -25,12 +25,12 @@ services:
       DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-}
       RATE_LIMIT_PER_NODE: ${RATE_LIMIT_PER_NODE:-120}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
-      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:3000}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "${SERVER_PORT:-8000}:8000"
+    expose:
+      - "8000"
 
   web:
     build:
@@ -38,6 +38,8 @@ services:
       dockerfile: web/Dockerfile
       args:
         NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-}
+    environment:
+      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://server:8000}
     depends_on:
       - server
     ports:

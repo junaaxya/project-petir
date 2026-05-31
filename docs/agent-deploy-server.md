@@ -46,27 +46,30 @@ LANGKAH:
    - Opsi B (DIREKOMENDASIKAN): biarkan DASHBOARD_AUTH_ENABLED=false, lalu pasang Cloudflare Access
      (kebijakan email/SSO) pada hostname di Cloudflare. Auth di edge, tanpa kelola key.
    (Write-path ingest selalu dilindungi token per-node — ini hanya soal read-path dashboard.)
-6. nginx (host) — TAMBAHKAN server block (lihat docs/nginx-cloudflare.md) untuk hostname kalian:
-     location /api/ → proxy_pass http://127.0.0.1:8000;
-     location /     → proxy_pass http://127.0.0.1:3000;  (dengan header Upgrade/Connection untuk websocket)
-   Cloudflare sudah terminasi TLS, jadi `listen 80` di sisi loopback cukup.
-   `sudo nginx -t && sudo systemctl reload nginx`  (reload, JANGAN restart kalau bisa).
-7. cloudflared — TAMBAHKAN ingress untuk hostname PetirDashboard mengarah ke nginx
-   (service: http://localhost:80), lalu route DNS-nya. JANGAN ubah ingress hostname lain.
-8. DAFTARKAN NODE EDGE (untuk Pi):
-   `docker compose exec server python scripts/register_node.py rpi-lab-01 --name "Lab rooftop"`
-   → cetak NODE_TOKEN SEKALI. Berikan token ini ke operator/agent Pi dengan aman (jangan kirim via channel tidak aman).
+6. cloudflared — TAMBAHKAN ingress untuk hostname petir.lab-ilkom.my.id mengarah LANGSUNG ke
+   web container (service: http://localhost:3000), lalu route DNS-nya. JANGAN ubah ingress hostname lain.
+   CATATAN PENTING: tunnel mengarah ke web:3000 (Next.js), BUKAN ke server:8000 dan BUKAN ke nginx.
+   Next.js sudah mem-proxy /api/* ke server:8000 secara internal (rewrites di next.config.mjs,
+   API_PROXY_TARGET=http://server:8000 sudah diset di docker-compose). Jadi nginx TIDAK diperlukan
+   untuk hostname ini. (Detail: docs/nginx-cloudflare.md.)
+   Contoh ingress:
+     ingress:
+       - hostname: petir.lab-ilkom.my.id
+         service: http://localhost:3000
+       - service: http_status:404
+7. (lewati) nginx tidak diperlukan untuk deployment satu-app ini. Tunnel → :3000 sudah cukup.
 
 VERIFIKASI (wajib lapor):
-- `curl -s https://petir.lab-ilkom.my.id/api/health/latest` → balas JSON (lewat tunnel+nginx).
+- `curl -s https://petir.lab-ilkom.my.id/api/health/latest` → balas JSON (lewat tunnel → web:3000 → proxy ke server:8000).
 - Buka https://petir.lab-ilkom.my.id di browser → dashboard tampil (jika Opsi A, sertakan header X-API-Key).
 - `docker compose ps` semua Up/healthy.
-- PostgreSQL TIDAK dapat diakses dari luar host (cek `docker compose port postgres 5432` → tidak ter-publish).
+- PostgreSQL TIDAK dapat diakses dari luar host. Server JUGA tidak ter-publish ke host
+  (cek `docker compose ps` → hanya web yang punya port 3000 ter-publish).
 - Setelah Pi mulai sync: `curl https://petir.lab-ilkom.my.id/api/ingest/runs` menunjukkan run dengan rejected=0.
 
 ROLLBACK:
 - `docker compose down` (data tetap di volume petir_pg). Migrasi Alembic reversible.
-- Hapus server block nginx + ingress cloudflared yang kamu tambahkan jika perlu.
+- Hapus ingress cloudflared yang kamu tambahkan jika perlu.
 
 LAPORKAN: status tiap verifikasi di atas, mode auth yang dipilih, NODE_TOKEN sudah diserahkan ke
 pihak Pi (ya/tidak), dan masalah yang ditemui. Jangan klaim sukses tanpa output curl /api/health/latest.
