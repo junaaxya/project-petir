@@ -1,6 +1,6 @@
-import type { NodeStatus, WeatherStatus } from "@/lib/types";
+import type { NodeStatus, StreamStatus, WeatherStatus } from "@/lib/types";
 
-type DotStatus = NodeStatus | WeatherStatus;
+type DotStatus = NodeStatus | StreamStatus | WeatherStatus;
 
 const dotColor: Record<string, string> = {
   fresh: "bg-[#16a34a]",
@@ -10,6 +10,8 @@ const dotColor: Record<string, string> = {
   degraded: "bg-[#d97706]",
   offline: "bg-[#dc2626]",
   invalid: "bg-[#dc2626]",
+  idle: "bg-[#64748b]",
+  unknown: "bg-[#6b7280]",
   no_data: "bg-[#6b7280]",
 };
 

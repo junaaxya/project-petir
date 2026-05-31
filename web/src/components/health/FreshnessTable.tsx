@@ -23,6 +23,22 @@ function fmtTs(ts: string | null): string {
   });
 }
 
+function streamKindLabel(kind: HealthStream["kind"]): string {
+  return kind === "event" ? "aktivitas" : "periodik";
+}
+
+function statusLabel(status: HealthStream["status"]): string {
+  const labels: Record<HealthStream["status"], string> = {
+    fresh: "fresh",
+    stale: "stale",
+    offline: "offline",
+    no_data: "no data",
+    idle: "idle",
+    unknown: "unknown",
+  };
+  return labels[status];
+}
+
 interface FreshnessTableProps {
   streams: HealthStream[];
   loading: boolean;
@@ -69,8 +85,13 @@ export function FreshnessTable({ streams, loading }: FreshnessTableProps) {
                   key={stream.table}
                   className="border-b border-[var(--color-border)] last:border-0"
                 >
-                  <td className="py-2 font-mono text-xs text-[var(--color-text)]">
-                    {stream.table}
+                  <td className="py-2">
+                    <div className="font-mono text-xs text-[var(--color-text)]">
+                      {stream.table}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
+                      {streamKindLabel(stream.kind)}
+                    </div>
                   </td>
                   <td className="py-2 text-[var(--color-text)]">{fmtTs(stream.last_ts_utc)}</td>
                   <td className="py-2 text-right text-[var(--color-text-muted)]">
@@ -79,7 +100,9 @@ export function FreshnessTable({ streams, loading }: FreshnessTableProps) {
                   <td className="py-2 text-right">
                     <span className="inline-flex items-center justify-end gap-1.5">
                       <StatusDot status={stream.status} pulse={stream.status === "fresh"} />
-                      <span className="text-xs text-[var(--color-text-muted)]">{stream.status}</span>
+                      <span className="text-xs text-[var(--color-text-muted)]">
+                        {statusLabel(stream.status)}
+                      </span>
                     </span>
                   </td>
                 </tr>

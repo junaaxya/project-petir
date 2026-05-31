@@ -19,6 +19,9 @@ export type LightningEventType = "lightning" | "disturber" | "noise";
 export type QualityStatus = "ok" | "warn" | "invalid";
 export type SystemLevel = "debug" | "info" | "warn" | "error" | "critical";
 export type IngestStatus = "accepted" | "partial" | "rejected";
+export type NodeStatus = "fresh" | "stale" | "offline" | "no_data";
+export type StreamKind = "cadence" | "event";
+export type StreamStatus = NodeStatus | "idle" | "unknown";
 
 export interface Cursor {
   strategy?: CursorStrategy | null;
@@ -57,6 +60,22 @@ export interface SyncBatchResponse {
   rejected: RejectedRow[];
   accepted_cursor: Cursor;
   server_contract_version: string;
+}
+
+export interface StreamFreshness {
+  table: string;
+  kind: StreamKind;
+  last_ts_utc: string | null;
+  age_seconds: number | null;
+  status: StreamStatus;
+}
+
+export interface HealthResponse {
+  node_id: string | null;
+  node_status: NodeStatus;
+  last_seen_utc: string | null;
+  sync_lag_seconds: number | null;
+  streams: StreamFreshness[];
 }
 
 export interface WeatherSampleRow {

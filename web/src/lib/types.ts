@@ -1,13 +1,20 @@
 export type {
   WeatherStatus,
   LightningStatus,
+  NodeStatus,
+  StreamKind,
+  StreamStatus,
   WeatherMinuteSummaryRow,
   HistoryPoint,
   HistoryResponse,
   ApiError,
 } from "@contracts";
 
-export type NodeStatus = "fresh" | "stale" | "offline" | "no_data";
+import type {
+  NodeStatus as ContractNodeStatus,
+  StreamKind as ContractStreamKind,
+  StreamStatus as ContractStreamStatus,
+} from "@contracts";
 
 export interface WeatherLatestMinute {
   minute_utc: string;
@@ -35,16 +42,16 @@ export interface WeatherLatestResponse {
 
 export interface HealthStream {
   table: string;
+  kind: ContractStreamKind;
   last_ts_utc: string | null;
   age_seconds: number | null;
-  status: NodeStatus;
+  status: ContractStreamStatus;
 }
 
 export interface HealthLatestResponse {
   node_id: string | null;
-  node_status: NodeStatus;
+  node_status: ContractNodeStatus;
   last_seen_utc: string | null;
   sync_lag_seconds: number | null;
   streams: HealthStream[];
 }
-

@@ -26,6 +26,7 @@ class LatestResponse(BaseModel):
 
 class StreamFreshness(BaseModel):
     table: str
+    kind: str
     last_ts_utc: Optional[str]
     age_seconds: Optional[float]
     status: str
