@@ -33,7 +33,7 @@ LANGKAH:
    (opsional minimal: `bash scripts/bootstrap-edge.sh --sparse` agar hanya folder edge ter-checkout)
 2. Pastikan Python 3.11+ tersedia.
 3. Konfigurasi: `cp edge/.env.example edge/.env` lalu isi:
-   - SERVER_URL=https://<domain-publik-cloudflare-tunnel>   (TANYA operator domain-nya; ini URL publik, bukan IP)
+   - SERVER_URL=https://petir.lab-ilkom.my.id   (TANYA operator domain-nya; ini URL publik, bukan IP)
    - NODE_ID=rpi-lab-01                                      (atau id yang diberikan operator)
    - NODE_TOKEN=<token dari server>                          (operator menjalankan register_node.py di server, lalu memberi token ini SEKALI)
    - EDGE_DB_PATH=/home/pi/weather-edge/data/db/weather_edge.db
@@ -60,7 +60,7 @@ VERIFIKASI (wajib lapor hasilnya):
 - `systemctl is-active weather-ingest lightning-ingest`  → harus tetap `active` (TIDAK terganggu)
 - `sudo systemctl start petir-sync.service && journalctl -u petir-sync.service -n 50 --no-pager`
 - `systemctl list-timers petir-sync.timer --no-pager`    → timer terjadwal
-- Konfirmasi data sampai ke server: minta operator cek GET https://<domain>/api/ingest/runs
+- Konfirmasi data sampai ke server: minta operator cek GET https://petir.lab-ilkom.my.id/api/ingest/runs
   (harus ada run terbaru, rows_accepted > 0, rejected = 0).
 - Konfirmasi file backup DB dibuat (weather_edge.db.backup-<timestamp>).
 

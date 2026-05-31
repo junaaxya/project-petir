@@ -22,7 +22,7 @@ else to the Next.js app. Adjust `server_name` and ports to match your `.env`.
 ```nginx
 server {
     listen 80;
-    server_name petir.example.com;
+    server_name petir.lab-ilkom.my.id;
 
     client_max_body_size 16m;
 
@@ -62,32 +62,37 @@ tunnel: <TUNNEL_ID>
 credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
 
 ingress:
-  - hostname: petir.example.com
+  - hostname: petir.lab-ilkom.my.id
     service: http://localhost:80
   - service: http_status:404
 ```
 
 ```bash
-cloudflared tunnel route dns <TUNNEL_ID> petir.example.com
+cloudflared tunnel route dns <TUNNEL_ID> petir.lab-ilkom.my.id
 cloudflared tunnel run <TUNNEL_ID>
 ```
 
 ## Frontend API base
 
-The browser reaches the API through the same public hostname, so set:
+The dashboard and API share ONE origin (both behind this nginx), so the browser
+uses **relative** `/api/...` paths. Leave the build-time base EMPTY:
 
 ```
-NEXT_PUBLIC_API_BASE=https://petir.example.com
+NEXT_PUBLIC_API_BASE=
 ```
 
-`/api/...` is then proxied by nginx to the server container. No CORS config is
-needed because the dashboard and API share one origin.
+With an empty base the dashboard calls `/api/...` relative to its own origin,
+which nginx proxies to the server container. No CORS config is needed.
+
+> `NEXT_PUBLIC_*` is inlined at BUILD time (passed as a Docker build ARG, see
+> web/Dockerfile + docker-compose.yml). Only set a full URL here if you ever
+> serve the API on a different origin than the dashboard.
 
 ## Bring up the stack
 
 ```bash
-cp .env.example .env   # set credentials + NEXT_PUBLIC_API_BASE
-docker compose up -d   # postgres + server + web (no proxy container)
+cp .env.example .env   # set credentials; leave NEXT_PUBLIC_API_BASE empty (same-origin)
+docker compose up -d --build   # postgres + server + web (no proxy container)
 ```
 
 nginx and `cloudflared` run on the host and are managed outside compose.

@@ -58,11 +58,11 @@ LANGKAH:
    → cetak NODE_TOKEN SEKALI. Berikan token ini ke operator/agent Pi dengan aman (jangan kirim via channel tidak aman).
 
 VERIFIKASI (wajib lapor):
-- `curl -s https://<domain>/api/health/latest` → balas JSON (lewat tunnel+nginx).
-- Buka https://<domain> di browser → dashboard tampil (jika Opsi A, sertakan header X-API-Key).
+- `curl -s https://petir.lab-ilkom.my.id/api/health/latest` → balas JSON (lewat tunnel+nginx).
+- Buka https://petir.lab-ilkom.my.id di browser → dashboard tampil (jika Opsi A, sertakan header X-API-Key).
 - `docker compose ps` semua Up/healthy.
 - PostgreSQL TIDAK dapat diakses dari luar host (cek `docker compose port postgres 5432` → tidak ter-publish).
-- Setelah Pi mulai sync: `curl https://<domain>/api/ingest/runs` menunjukkan run dengan rejected=0.
+- Setelah Pi mulai sync: `curl https://petir.lab-ilkom.my.id/api/ingest/runs` menunjukkan run dengan rejected=0.
 
 ROLLBACK:
 - `docker compose down` (data tetap di volume petir_pg). Migrasi Alembic reversible.

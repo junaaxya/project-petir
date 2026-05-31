@@ -39,7 +39,7 @@ docker compose logs server    # confirm "alembic upgrade head" ran to 0004
 
 - [ ] nginx proxies `/api/` → `127.0.0.1:8000` and `/` → `127.0.0.1:3000`.
 - [ ] `cloudflared` ingress points the public hostname at nginx (`http://localhost:80`).
-- [ ] Browse `https://<domain>` → dashboard loads; `https://<domain>/api/health/latest`
+- [ ] Browse `https://petir.lab-ilkom.my.id` → dashboard loads; `https://petir.lab-ilkom.my.id/api/health/latest`
       responds. Full config in [nginx-cloudflare.md](./nginx-cloudflare.md).
 
 ## 3. Register the edge node → get its token
@@ -82,7 +82,7 @@ no Node/web toolchain). Use `--sparse` to keep only edge folders on disk
 ```bash
 ssh pi@<pi-host>
 git clone <repo-url> petir && cd petir
-cp edge/.env.example edge/.env   # set SERVER_URL=https://<domain>, NODE_ID, NODE_TOKEN, EDGE_DB_PATH
+cp edge/.env.example edge/.env   # set SERVER_URL=https://petir.lab-ilkom.my.id, NODE_ID, NODE_TOKEN, EDGE_DB_PATH
 ```
 
 - [ ] Inspect live schema (read-only): `cd edge && python -m migrations.inspect "$EDGE_DB_PATH"`.
@@ -116,7 +116,7 @@ real Pi data (110459 rows, 0 rejected) — see [edge-schema-drift.md](./edge-sch
    systemctl is-active weather-ingest lightning-ingest
    ```
 5. On the server, confirm rows landing and rejected ≈ 0:
-   `GET https://<domain>/api/ingest/runs`.
+   `GET https://petir.lab-ilkom.my.id/api/ingest/runs`.
 
 ## 7. Post-deploy verification
 
