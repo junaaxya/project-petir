@@ -125,3 +125,5 @@ ssh pi@raspberrypi 'cd /tmp/petir-deploy && bash scripts/bootstrap-edge.sh'
 - [nginx + Cloudflare Tunnel](docs/nginx-cloudflare.md)
 - [Deployment Topology — Pi ↔ Lab Server (no public IP)](docs/deployment-topology.md)
 - [Production Checklist](docs/production-checklist.md)
+- [Agent Deploy Prompt — Raspberry Pi (edge)](docs/agent-deploy-pi.md)
+- [Agent Deploy Prompt — Lab Server (server + web)](docs/agent-deploy-server.md)
