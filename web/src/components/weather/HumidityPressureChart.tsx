@@ -46,7 +46,7 @@ export function HumidityPressureChart({ series, loading }: HumidityPressureChart
 
   const option = {
     backgroundColor: "transparent",
-    grid: { top: 32, right: 64, bottom: 40, left: 56, containLabel: false },
+    grid: { top: 64, right: 8, bottom: 56, left: 8, containLabel: true },
     tooltip: {
       trigger: "axis",
       backgroundColor: "#1a1d27",
@@ -54,24 +54,29 @@ export function HumidityPressureChart({ series, loading }: HumidityPressureChart
       textStyle: { color: "#e2e8f0", fontSize: 12 },
     },
     legend: {
+      type: "scroll",
+      orient: "horizontal",
       data: ["Kelembapan (%)", "Tekanan (hPa)", "Cahaya (lx)"],
-      textStyle: { color: "#94a3b8", fontSize: 11 },
+      textStyle: { color: "#94a3b8", fontSize: 10 },
       top: 0,
+      left: 0,
       right: 0,
+      itemWidth: 10,
+      itemHeight: 6,
     },
     xAxis: {
       type: "category",
       data: buckets,
       axisLine: { lineStyle: { color: "#2a2d3a" } },
-      axisLabel: { color: "#94a3b8", fontSize: 10, rotate: 30 },
+      axisLabel: { color: "#94a3b8", fontSize: 10, rotate: 35, hideOverlap: true },
       splitLine: { show: false },
     },
     yAxis: [
       {
         type: "value",
-        name: "%",
+        name: "",
         nameTextStyle: { color: "#94a3b8", fontSize: 10 },
-        axisLabel: { color: "#94a3b8", fontSize: 10 },
+        axisLabel: { color: "#94a3b8", fontSize: 9 },
         axisLine: { show: false },
         splitLine: { lineStyle: { color: "#2a2d3a" } },
         min: 0,
@@ -79,21 +84,20 @@ export function HumidityPressureChart({ series, loading }: HumidityPressureChart
       },
       {
         type: "value",
-        name: "hPa",
+        name: "",
         nameTextStyle: { color: "#94a3b8", fontSize: 10 },
-        axisLabel: { color: "#94a3b8", fontSize: 10 },
+        axisLabel: { color: "#94a3b8", fontSize: 9 },
         axisLine: { show: false },
         splitLine: { show: false },
       },
       {
         type: "value",
-        name: "lx",
+        name: "",
         nameTextStyle: { color: "#94a3b8", fontSize: 10 },
-        axisLabel: { color: "#94a3b8", fontSize: 10 },
+        axisLabel: { show: false },
         axisLine: { show: false },
         splitLine: { show: false },
         position: "right",
-        offset: 48,
       },
     ],
     series: [
@@ -136,7 +140,7 @@ export function HumidityPressureChart({ series, loading }: HumidityPressureChart
       <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
         Kelembapan · Tekanan · Cahaya
       </p>
-      <ReactECharts option={option} style={{ height: 220 }} notMerge />
+      <ReactECharts option={option} style={{ height: "clamp(220px, 58vw, 280px)" }} notMerge />
     </Card>
   );
 }

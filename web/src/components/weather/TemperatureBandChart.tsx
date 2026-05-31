@@ -46,7 +46,7 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
 
   const option = {
     backgroundColor: "transparent",
-    grid: { top: 32, right: 16, bottom: 40, left: 48, containLabel: false },
+    grid: { top: 56, right: 8, bottom: 52, left: 8, containLabel: true },
     tooltip: {
       trigger: "axis",
       backgroundColor: "#1a1d27",
@@ -54,23 +54,28 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
       textStyle: { color: "#e2e8f0", fontSize: 12 },
     },
     legend: {
+      type: "scroll",
+      orient: "horizontal",
       data: ["Min", "Maks", "Rata²"],
-      textStyle: { color: "#94a3b8", fontSize: 11 },
+      textStyle: { color: "#94a3b8", fontSize: 10 },
       top: 0,
+      left: 0,
       right: 0,
+      itemWidth: 10,
+      itemHeight: 6,
     },
     xAxis: {
       type: "category",
       data: buckets,
       axisLine: { lineStyle: { color: "#2a2d3a" } },
-      axisLabel: { color: "#94a3b8", fontSize: 10, rotate: 30 },
+      axisLabel: { color: "#94a3b8", fontSize: 10, rotate: 35, hideOverlap: true },
       splitLine: { show: false },
     },
     yAxis: {
       type: "value",
-      name: "°C",
+      name: "",
       nameTextStyle: { color: "#94a3b8", fontSize: 10 },
-      axisLabel: { color: "#94a3b8", fontSize: 10 },
+      axisLabel: { color: "#94a3b8", fontSize: 9 },
       axisLine: { show: false },
       splitLine: { lineStyle: { color: "#2a2d3a" } },
     },
@@ -112,7 +117,7 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
       <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
         Pita Suhu
       </p>
-      <ReactECharts option={option} style={{ height: 220 }} notMerge />
+      <ReactECharts option={option} style={{ height: "clamp(210px, 56vw, 270px)" }} notMerge />
     </Card>
   );
 }

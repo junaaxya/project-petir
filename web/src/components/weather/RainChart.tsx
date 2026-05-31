@@ -46,7 +46,7 @@ export function RainChart({ series, loading }: RainChartProps) {
 
   const option = {
     backgroundColor: "transparent",
-    grid: { top: 24, right: 16, bottom: 40, left: 48, containLabel: false },
+    grid: { top: 18, right: 8, bottom: 52, left: 8, containLabel: true },
     tooltip: {
       trigger: "axis",
       backgroundColor: "#1a1d27",
@@ -57,14 +57,14 @@ export function RainChart({ series, loading }: RainChartProps) {
       type: "category",
       data: buckets,
       axisLine: { lineStyle: { color: "#2a2d3a" } },
-      axisLabel: { color: "#94a3b8", fontSize: 10, rotate: 30 },
+      axisLabel: { color: "#94a3b8", fontSize: 10, rotate: 35, hideOverlap: true },
       splitLine: { show: false },
     },
     yAxis: {
       type: "value",
-      name: "mm",
+      name: "",
       nameTextStyle: { color: "#94a3b8", fontSize: 10 },
-      axisLabel: { color: "#94a3b8", fontSize: 10 },
+      axisLabel: { color: "#94a3b8", fontSize: 9 },
       axisLine: { show: false },
       splitLine: { lineStyle: { color: "#2a2d3a" } },
       min: 0,
@@ -75,7 +75,7 @@ export function RainChart({ series, loading }: RainChartProps) {
         type: "bar",
         data: rains,
         itemStyle: { color: "#38bdf8", borderRadius: [2, 2, 0, 0] },
-        barMaxWidth: 16,
+        barMaxWidth: 12,
       },
     ],
   };
@@ -85,7 +85,7 @@ export function RainChart({ series, loading }: RainChartProps) {
       <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
         Hujan
       </p>
-      <ReactECharts option={option} style={{ height: 160 }} notMerge />
+      <ReactECharts option={option} style={{ height: "clamp(200px, 54vw, 250px)" }} notMerge />
     </Card>
   );
 }

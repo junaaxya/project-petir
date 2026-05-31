@@ -96,7 +96,7 @@ export function WindRoseChart({ series, loading }: WindRoseChartProps) {
       <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
         Arah Angin
       </p>
-      <ReactECharts option={option} style={{ height: 220 }} notMerge />
+      <ReactECharts option={option} style={{ height: "clamp(180px, 35vw, 240px)" }} notMerge />
     </Card>
   );
 }
