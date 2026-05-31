@@ -1,0 +1,5 @@
+{
+  "contract_version": "2.0.0",
+  "description": "PetirDashboard edge<->server wire contract version. Semver rules: MAJOR breaks compatibility (server rejects mismatched MAJOR with HTTP 426), MINOR adds optional fields (backward compatible), PATCH is non-structural/docs. Server validates MAJOR equality only.",
+  "last_updated_utc": "2026-05-31"
+}

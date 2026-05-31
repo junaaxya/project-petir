@@ -1,0 +1,23 @@
+[project]
+name = "petir-server"
+version = "1.0.0"
+description = "PetirDashboard central server: FastAPI ingest (write) + query (read), SQLAlchemy 2.0 models, Alembic migrations."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

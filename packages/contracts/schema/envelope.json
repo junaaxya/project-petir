@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "petir:envelope",
+  "title": "SyncBatchEnvelope",
+  "description": "Request body for POST /api/ingest/sync-batch. One table per request, batch of rows. A single edge sync RUN may send multiple envelopes (one per table) sharing the same run_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "node_id", "db_epoch", "run_id", "table", "cursor", "rows"],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of the contract the edge was built against."
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable edge identity, e.g. 'rpi-lab-01'. Must be registered in edge_nodes."
+    },
+    "db_epoch": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID regenerated whenever the edge SQLite DB is (re)initialized/reflashed. Detects rowid reuse: if server sees a NEW db_epoch for a node, it resets cursors for that (node, table) to avoid silently overwriting unrelated historical rows."
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID per single-run sync execution. Shared across all table envelopes in one run. Idempotency/trace key."
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional run-level metadata for telemetry (sync_runs).",
+      "properties": {
+        "started_at_utc": { "type": "string", "format": "date-time" },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based index of this table envelope within the run (table #1, #2, ...)."
+        }
+      }
+    },
+    "table": { "$ref": "petir:enums#/definitions/table_name" },
+    "cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The cursor position the edge BELIEVES it is sending from. Server treats accepted_cursor in its response as authoritative; edge must store the server-returned cursor, not compute its own.",
+      "properties": {
+        "strategy": { "$ref": "petir:enums#/definitions/cursor_strategy" },
+        "last_edge_id": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "For 'append' strategy: highest edge SQLite id already ACKed. Rows in this batch have id > last_edge_id."
+        },
+        "last_change_seq": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "For 'summary' strategy: highest monotonic change_seq already ACKed. change_seq is bumped by an AFTER INSERT/UPDATE trigger on the edge summary tables, so late updates to old minutes always get a higher change_seq and are never missed."
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": { "type": "object" },
+      "description": "Row objects validated against the per-table schema in schema/rows/<table>.json. Each row carries edge_id (append) or change_seq (summary) so the server can compute accepted_cursor."
+    }
+  }
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Petir edge sync (single-run push to lab server)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=petir
+WorkingDirectory=/opt/petir/edge
+ExecStart=/opt/petir/edge/.venv/bin/python -m sync_worker.run
+EnvironmentFile=/opt/petir/edge/.env
+TimeoutStartSec=60

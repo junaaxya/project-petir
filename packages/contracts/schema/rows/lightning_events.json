@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "petir:rows/lightning_events",
+  "title": "LightningEventRow",
+  "description": "Raw lightning sensor event. APPEND strategy (edge_id). NOTE: this table is sparse in current deployment; downstream UI must handle empty/low-volume honestly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["edge_id", "ts_pi_utc", "created_at_utc"],
+  "properties": {
+    "edge_id": { "type": "integer", "minimum": 1 },
+    "ts_pi_utc": { "type": "string", "format": "date-time" },
+    "source": { "type": ["string", "null"] },
+    "device": { "type": ["string", "null"] },
+    "sensor": { "type": ["string", "null"] },
+    "event_type": { "oneOf": [ { "$ref": "petir:enums#/definitions/lightning_event_type" }, { "type": "null" } ] },
+    "distance_km": { "type": ["number", "null"] },
+    "energy_raw": { "type": ["integer", "null"] },
+    "noise_level": { "type": ["integer", "null"] },
+    "irq_source": { "type": ["integer", "null"], "description": "AS3935 IRQ-source code emitted by the edge firmware." },
+    "raw_line": { "type": ["string", "null"] },
+    "ingest_run_id": { "type": ["integer", "null"] },
+    "created_at_utc": { "type": "string", "format": "date-time" }
+  }
+}

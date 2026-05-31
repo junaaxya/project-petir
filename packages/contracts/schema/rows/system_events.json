@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "petir:rows/system_events",
+  "title": "SystemEventRow",
+  "description": "Operational/system event from the edge node (boot, error, sync_failure, clock_skew, etc). APPEND strategy (edge_id). Synced FIRST (highest priority) so outages surface quickly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["edge_id", "ts_pi_utc", "created_at_utc"],
+  "properties": {
+    "edge_id": { "type": "integer", "minimum": 1 },
+    "ts_pi_utc": { "type": "string", "format": "date-time" },
+    "source": { "type": ["string", "null"] },
+    "level": { "oneOf": [ { "$ref": "petir:enums#/definitions/system_level" }, { "type": "null" } ] },
+    "event_type": { "type": ["string", "null"] },
+    "message": { "type": ["string", "null"] },
+    "details_json": { "type": ["object", "string", "null"] },
+    "created_at_utc": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "petir:rows/weather_samples",
+  "title": "WeatherSampleRow",
+  "description": "Raw weather sensor sample. APPEND strategy: carries edge_id (SQLite autoincrement id). Largest table; synced last/throttled.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["edge_id", "ts_pi_utc", "created_at_utc"],
+  "properties": {
+    "edge_id": { "type": "integer", "minimum": 1, "description": "Original SQLite rowid on the edge. Server unique key is (node_id, db_epoch, edge_id)." },
+    "ts_pi_utc": { "type": "string", "format": "date-time" },
+    "source": { "type": ["string", "null"] },
+    "device": { "type": ["string", "null"] },
+    "sensor": { "type": ["string", "null"] },
+    "temperature_c": { "type": ["number", "null"] },
+    "humidity_pct": { "type": ["number", "null"] },
+    "pressure_hpa": { "type": ["number", "null"] },
+    "illuminance_lux": { "type": ["number", "null"] },
+    "rain_mm": { "type": ["number", "null"] },
+    "wind_speed_ms": { "type": ["number", "null"] },
+    "wind_dir_code": { "type": ["integer", "null"], "description": "Compass sector index (0-15) emitted by the edge firmware; complements wind_dir_deg." },
+    "wind_dir_deg": { "type": ["number", "null"] },
+    "raw_json": { "type": ["object", "string", "null"], "description": "Full sensor payload, preserved for future ML." },
+    "ingest_run_id": { "type": ["integer", "null"], "description": "Edge-side ingestion run id (NOT the sync run_id)." },
+    "created_at_utc": { "type": "string", "format": "date-time" }
+  }
+}

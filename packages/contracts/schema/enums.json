@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "petir:enums",
+  "title": "PetirEnums",
+  "description": "Shared enumerations for the PetirDashboard wire contract. These are the ONLY allowed values; server rejects rows with out-of-enum values per-row (INVALID_ENUM).",
+  "definitions": {
+    "table_name": {
+      "type": "string",
+      "enum": [
+        "weather_samples",
+        "weather_minute_summary",
+        "lightning_events",
+        "lightning_minute_summary",
+        "weather_quality_events",
+        "system_events"
+      ]
+    },
+    "cursor_strategy": {
+      "type": "string",
+      "enum": ["append", "summary"],
+      "description": "append = monotonic edge id (event tables). summary = monotonic change_seq (late-updated minute tables)."
+    },
+    "weather_status": {
+      "type": "string",
+      "enum": ["ok", "warn", "degraded", "invalid", "no_data"],
+      "description": "Per-minute aggregate status for weather_minute_summary.status"
+    },
+    "lightning_status": {
+      "type": "string",
+      "enum": ["quiet", "noise", "disturber", "activity", "saturated", "no_data"],
+      "description": "Per-minute status for lightning_minute_summary.status. 'saturated' = sensor saturation (high activity beyond reliable counting)."
+    },
+    "lightning_event_type": {
+      "type": "string",
+      "enum": ["lightning", "disturber", "noise"],
+      "description": "lightning_events.event_type. 'lightning' = real strike, 'disturber' = man-made interference, 'noise' = noise floor trip."
+    },
+    "quality_status": {
+      "type": "string",
+      "enum": ["ok", "warn", "invalid"],
+      "description": "weather_quality_events.quality_status"
+    },
+    "system_level": {
+      "type": "string",
+      "enum": ["debug", "info", "warn", "error", "critical"],
+      "description": "system_events.level"
+    },
+    "ingest_status": {
+      "type": "string",
+      "enum": ["accepted", "partial", "rejected"],
+      "description": "Server sync-batch response / sync_runs.status"
+    }
+  }
+}

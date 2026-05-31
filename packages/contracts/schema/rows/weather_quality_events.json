@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "petir:rows/weather_quality_events",
+  "title": "WeatherQualityEventRow",
+  "description": "Data quality / audit event for weather samples. APPEND strategy (edge_id).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["edge_id", "created_at_utc"],
+  "properties": {
+    "edge_id": { "type": "integer", "minimum": 1 },
+    "ts_pi_utc": { "type": ["string", "null"], "format": "date-time" },
+    "minute_utc": { "type": ["string", "null"], "format": "date-time" },
+    "sample_ts_utc": { "type": ["string", "null"], "format": "date-time" },
+    "source": { "type": ["string", "null"] },
+    "device": { "type": ["string", "null"] },
+    "quality_status": { "oneOf": [ { "$ref": "petir:enums#/definitions/quality_status" }, { "type": "null" } ] },
+    "reason_codes": { "type": ["string", "array", "null"], "description": "JSON array or delimited string of reason codes." },
+    "message": { "type": ["string", "null"] },
+    "details_json": { "type": ["object", "string", "null"] },
+    "created_at_utc": { "type": "string", "format": "date-time" }
+  }
+}

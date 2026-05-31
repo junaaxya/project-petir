@@ -1,0 +1,51 @@
+# --- Secrets / env (NEVER commit) ---
+.env
+.env.*
+!.env.example
+!web/.env.development
+edge/.env
+web/.env.local
+web/.env.production
+
+# --- Agent / tooling internal state ---
+.sisyphus/
+
+# --- Python ---
+.venv/
+**/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / Next.js ---
+node_modules/
+web/.next/
+web/.next-stale-*/
+web/out/
+.turbo/
+*.tsbuildinfo
+
+# --- Edge DB copies / backups (data, jangan commit) ---
+*.db
+*.db-shm
+*.db-wal
+*.db.backup-*
+weather_copy.db*
+
+# --- Build / dist ---
+dist/
+build/
+
+# --- Logs / tmp ---
+*.log
+/tmp/petir-*.log
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

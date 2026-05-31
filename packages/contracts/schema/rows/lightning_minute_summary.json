@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "petir:rows/lightning_minute_summary",
+  "title": "LightningMinuteSummaryRow",
+  "description": "Per-minute lightning/noise aggregate. SUMMARY strategy (change_seq). Drives the status-first Lightning page.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["change_seq", "minute_utc", "source", "device", "updated_at_utc"],
+  "properties": {
+    "change_seq": { "type": "integer", "minimum": 1 },
+    "minute_utc": { "type": "string", "format": "date-time" },
+    "source": { "type": "string" },
+    "device": { "type": "string" },
+    "lightning_count": { "type": ["integer", "null"] },
+    "disturber_count": { "type": ["integer", "null"] },
+    "noise_window_count": { "type": ["integer", "null"] },
+    "noise_event_count": { "type": ["integer", "null"] },
+    "status": { "oneOf": [ { "$ref": "petir:enums#/definitions/lightning_status" }, { "type": "null" } ] },
+    "last_event_ts_utc": { "type": ["string", "null"], "format": "date-time" },
+    "last_distance_km": { "type": ["number", "null"] },
+    "max_energy_raw": { "type": ["integer", "null"] },
+    "updated_at_utc": { "type": "string", "format": "date-time" }
+  }
+}

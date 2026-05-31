@@ -1,0 +1,19 @@
+[project]
+name = "petir-contracts"
+version = "1.0.0"
+description = "Shared edge<->server wire contract for PetirDashboard (Pydantic models + JSON Schema)."
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.6"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "jsonschema>=4.21"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
