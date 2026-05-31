@@ -27,9 +27,9 @@ export function MetricCard({ label, value, unit, min, max, loading }: MetricCard
         <EmptyState message="Tidak ada data" />
       ) : (
         <>
-          <p className="mt-1 font-mono text-3xl font-semibold text-[var(--color-text)]">
+          <p className="mt-1 font-mono text-xl sm:text-3xl font-semibold text-[var(--color-text)]">
             {fmt(value)}
-            <span className="ml-1 text-base font-normal text-[var(--color-text-muted)]">
+            <span className="ml-1 text-sm sm:text-base font-normal text-[var(--color-text-muted)]">
               {unit}
             </span>
           </p>

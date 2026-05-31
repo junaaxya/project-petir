@@ -111,7 +111,7 @@ export function TempHumidityChart({ series, loading }: TempHumidityChartProps) {
       <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
         Suhu &amp; Kelembapan — 24 jam
       </p>
-      <ReactECharts option={option} style={{ height: 200 }} notMerge />
+      <ReactECharts option={option} style={{ height: "clamp(160px, 30vw, 220px)" }} notMerge />
     </Card>
   );
 }

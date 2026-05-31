@@ -37,9 +37,9 @@ export default function WeatherPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
         <h1 className="text-lg font-semibold text-[var(--color-text)]">Riwayat Cuaca</h1>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <NodeSelect value={node} onChange={setNode} />
           <IntervalSelector value={interval} onChange={setInterval} />
           <TimeRangePicker value={timeRange} onChange={setTimeRange} />
