@@ -62,7 +62,7 @@ def _accepted_value(response_cursor, strategy: CursorStrategy) -> int | None:
 
 
 def run_once(config: Config, client: SyncClient, conn: sqlite3.Connection) -> int:
-    cursors.ensure_local_tables(conn)
+    cursors.ensure_local_tables(conn, config.sync_namespace)
     run_record.ensure_run_table(conn)
     db_epoch = cursors.get_or_create_db_epoch(conn)
 
@@ -78,7 +78,7 @@ def run_once(config: Config, client: SyncClient, conn: sqlite3.Connection) -> in
     sequence = 0
 
     for cfg in PRIORITY_ORDER:
-        cursor_value = cursors.read_cursor(conn, cfg.name, cfg.strategy)
+        cursor_value = cursors.read_cursor(conn, config.sync_namespace, cfg.name, cfg.strategy)
         rows = readers.read_rows(conn, cfg, cursor_value)
         if not rows:
             continue
@@ -105,6 +105,7 @@ def run_once(config: Config, client: SyncClient, conn: sqlite3.Connection) -> in
         if accepted_value is not None:
             cursors.advance_cursor(
                 conn,
+                config.sync_namespace,
                 cfg.name,
                 cfg.strategy,
                 accepted_value,
@@ -141,7 +142,13 @@ def run_once(config: Config, client: SyncClient, conn: sqlite3.Connection) -> in
 
 def main() -> int:
     config = load_config()
-    conn = sqlite3.connect(config.edge_db_path)
+    conn = sqlite3.connect(
+        config.edge_db_path,
+        timeout=config.edge_db_busy_timeout_s,
+    )
+    conn.execute(
+        f"PRAGMA busy_timeout = {int(config.edge_db_busy_timeout_s * 1000)}"
+    )
     client = SyncClient(config)
     try:
         return run_once(config, client, conn)

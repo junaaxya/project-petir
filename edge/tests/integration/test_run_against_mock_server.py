@@ -15,6 +15,7 @@ _CONFIG = Config(
     node_id="rpi-test-01",
     node_token="tok",
     edge_db_path=":memory:",
+    edge_db_busy_timeout_s=1.0,
     request_timeout_s=1.0,
     max_retries=2,
     backoff_base_s=0.0,
@@ -70,9 +71,9 @@ def test_full_run_acks_and_advances_cursors(edge_conn):
     assert exit_code == 0
     assert seen_tables[0] == "system_events"
     assert "weather_minute_summary" in seen_tables
-    assert cursors.read_cursor(edge_conn, "system_events", CursorStrategy.append) == 5
+    assert cursors.read_cursor(edge_conn, _CONFIG.sync_namespace, "system_events", CursorStrategy.append) == 5
     assert (
-        cursors.read_cursor(edge_conn, "weather_minute_summary", CursorStrategy.summary) == 3
+        cursors.read_cursor(edge_conn, _CONFIG.sync_namespace, "weather_minute_summary", CursorStrategy.summary) == 3
     )
 
 
@@ -93,7 +94,7 @@ def test_server_5xx_does_not_advance_cursor(edge_conn):
     exit_code = run_once(_CONFIG, client, edge_conn)
 
     assert exit_code == 2
-    assert cursors.read_cursor(edge_conn, "system_events", CursorStrategy.append) == 0
+    assert cursors.read_cursor(edge_conn, _CONFIG.sync_namespace, "system_events", CursorStrategy.append) == 0
 
 
 def test_resume_after_transient_failure(edge_conn):
@@ -107,12 +108,12 @@ def test_resume_after_transient_failure(edge_conn):
     client = _make_client(handler)
     first = run_once(_CONFIG, client, edge_conn)
     assert first == 2
-    assert cursors.read_cursor(edge_conn, "system_events", CursorStrategy.append) == 0
+    assert cursors.read_cursor(edge_conn, _CONFIG.sync_namespace, "system_events", CursorStrategy.append) == 0
 
     state["runs_failed"] = 1
     second = run_once(_CONFIG, client, edge_conn)
     assert second == 0
-    assert cursors.read_cursor(edge_conn, "system_events", CursorStrategy.append) == 5
+    assert cursors.read_cursor(edge_conn, _CONFIG.sync_namespace, "system_events", CursorStrategy.append) == 5
 
 
 def test_transient_5xx_retried_within_single_run(edge_conn):
@@ -131,4 +132,38 @@ def test_transient_5xx_retried_within_single_run(edge_conn):
     exit_code = run_once(_CONFIG, client, edge_conn)
     assert exit_code == 0
     assert attempts["n"] >= 2
-    assert cursors.read_cursor(edge_conn, "system_events", CursorStrategy.append) == 5
+    assert cursors.read_cursor(edge_conn, _CONFIG.sync_namespace, "system_events", CursorStrategy.append) == 5
+
+
+def test_node_or_server_identity_change_gets_fresh_cursor_namespace(edge_conn):
+    sent = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        body = json.loads(request.content)
+        sent.append((body["node_id"], body["table"], body["cursor"]))
+        return _ack(request)
+
+    client = _make_client(handler)
+    first = run_once(_CONFIG, client, edge_conn)
+    assert first == 0
+    sent.clear()
+
+    second_config = Config(
+        server_url="http://other.mock.local/",
+        node_id="rpi-test-02",
+        node_token="tok",
+        edge_db_path=":memory:",
+        edge_db_busy_timeout_s=1.0,
+        request_timeout_s=1.0,
+        max_retries=2,
+        backoff_base_s=0.0,
+        backoff_cap_s=0.0,
+    )
+    second = run_once(second_config, client, edge_conn)
+
+    assert second == 0
+    system_events = [entry for entry in sent if entry[1] == "system_events"]
+    assert system_events, "expected system_events to be replayed for a new sync identity"
+    assert system_events[0][2]["last_edge_id"] == 0
