@@ -1,55 +1,68 @@
 import { MetricCard } from "./MetricCard";
 import { WindDirectionCard } from "./WindDirectionCard";
-import type { WeatherLatestMinute } from "@/lib/types";
+import type { NodeStatus, WeatherLatestMinute } from "@/lib/types";
+import { isRealtimeUnavailable, realtimeSnapshotDetail } from "@/lib/realtime";
 
 interface OverviewGridProps {
   minute: WeatherLatestMinute | null | undefined;
   loading: boolean;
+  nodeStatus?: NodeStatus | null;
 }
 
-export function OverviewGrid({ minute, loading }: OverviewGridProps) {
+export function OverviewGrid({ minute, loading, nodeStatus }: OverviewGridProps) {
+  const unavailable = isRealtimeUnavailable(nodeStatus);
+  const detail = realtimeSnapshotDetail(nodeStatus, minute?.minute_utc);
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-7">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-7">
       <MetricCard
         label="Suhu"
-        value={minute?.temperature_avg}
+        value={unavailable ? null : minute?.temperature_avg}
         unit="°C"
-        min={minute?.temperature_min}
-        max={minute?.temperature_max}
         loading={loading}
+        emptyMessage={unavailable ? "Sensor offline" : undefined}
+        emptyDetail={detail}
       />
       <MetricCard
         label="Kelembapan"
-        value={minute?.humidity_avg}
+        value={unavailable ? null : minute?.humidity_avg}
         unit="%"
         loading={loading}
+        emptyMessage={unavailable ? "Sensor offline" : undefined}
+        emptyDetail={detail}
       />
       <MetricCard
         label="Tekanan"
-        value={minute?.pressure_avg}
+        value={unavailable ? null : minute?.pressure_avg}
         unit="hPa"
         loading={loading}
+        emptyMessage={unavailable ? "Sensor offline" : undefined}
+        emptyDetail={detail}
       />
       <MetricCard
         label="Cahaya"
-        value={minute?.illuminance_avg}
+        value={unavailable ? null : minute?.illuminance_avg}
         unit="lx"
         loading={loading}
+        emptyMessage={unavailable ? "Sensor offline" : undefined}
+        emptyDetail={detail}
       />
       <MetricCard
         label="Hujan"
-        value={minute?.rain_max}
+        value={unavailable ? null : minute?.rain_max}
         unit="mm"
         loading={loading}
+        emptyMessage={unavailable ? "Sensor offline" : undefined}
+        emptyDetail={detail}
       />
       <MetricCard
         label="Angin"
-        value={minute?.wind_speed_avg}
+        value={unavailable ? null : minute?.wind_speed_avg}
         unit="m/s"
-        max={minute?.wind_speed_max}
         loading={loading}
+        emptyMessage={unavailable ? "Sensor offline" : undefined}
+        emptyDetail={detail}
       />
-      <WindDirectionCard deg={minute?.latest_wind_dir_deg} windSpeed={minute?.wind_speed_avg} loading={loading} />
+      <WindDirectionCard deg={unavailable ? null : minute?.latest_wind_dir_deg} windSpeed={unavailable ? null : minute?.wind_speed_avg} loading={loading} />
     </div>
   );
 }

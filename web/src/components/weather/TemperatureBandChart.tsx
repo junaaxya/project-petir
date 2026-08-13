@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { HistoryPoint } from "@/lib/types";
+import { getTempAvg, getTempMax, getTempMin } from "@/lib/chart-fields";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
 
@@ -24,25 +25,28 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
   if (series.length === 0) {
     return (
       <Card>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-          Pita Suhu
-        </p>
-        <EmptyState message="Tidak ada data suhu" detail="Data akan muncul setelah node melakukan sinkronisasi." />
+        <div className="mb-2 flex flex-col gap-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">Suhu</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Min · Maks · Rata-rata (°C)</p>
+        </div>
+        <EmptyState message="Tidak ada data suhu" detail="Data suhu akan muncul setelah sensor kembali sinkron." />
       </Card>
     );
   }
 
   const buckets = series.map((p) =>
-    new Date(p.bucket as string).toLocaleString([], {
+    new Date(p.bucket as string).toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     }),
   );
-  const mins = series.map((p) => (p.temperature_min as number | null) ?? null);
-  const maxs = series.map((p) => (p.temperature_max as number | null) ?? null);
-  const avgs = series.map((p) => (p.temperature_avg as number | null) ?? null);
+  const rows = series as (HistoryPoint & Record<string, unknown>)[];
+  const mins = rows.map((p) => getTempMin(p));
+  const maxs = rows.map((p) => getTempMax(p));
+  const avgs = rows.map((p) => getTempAvg(p));
 
   const option = {
     backgroundColor: "transparent",
@@ -114,9 +118,10 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
 
   return (
     <Card>
-      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-        Pita Suhu
-      </p>
+      <div className="mb-2 flex flex-col gap-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">Suhu</p>
+        <p className="text-xs text-[var(--color-text-muted)]">Min · Maks · Rata-rata (°C)</p>
+      </div>
       <ReactECharts option={option} style={{ height: "clamp(210px, 56vw, 270px)" }} notMerge />
     </Card>
   );

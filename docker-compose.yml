@@ -23,9 +23,13 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-petir}:${POSTGRES_PASSWORD:-petir}@postgres:5432/${POSTGRES_DB:-petir}
       DASHBOARD_AUTH_ENABLED: ${DASHBOARD_AUTH_ENABLED:-false}
       DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-}
+      SIREN_AUDIT_OPERATORS_JSON: ${SIREN_AUDIT_OPERATORS_JSON:-[{"id":"tuan","name":"Tuan","role":"admin"},{"id":"operator-lab","name":"Operator Lab","role":"operator"}]}
+      WAN_FAILOVER_SNAPSHOT_DIR: ${WAN_FAILOVER_SNAPSHOT_DIR:-/app/snapshots}
       RATE_LIMIT_PER_NODE: ${RATE_LIMIT_PER_NODE:-120}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+    volumes:
+      - /mnt/data/petirdashboard/snapshots:/app/snapshots:ro
     depends_on:
       postgres:
         condition: service_healthy

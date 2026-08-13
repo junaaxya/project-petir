@@ -19,12 +19,37 @@ function parseReasonCodes(codes: string | string[] | null): string[] {
     .filter(Boolean);
 }
 
+function formatReasonCode(code: string): string {
+  const labels: Record<string, string> = {
+    humidity_spike: "Kelembaban berubah tiba-tiba",
+    out_of_range: "Nilai di luar batas wajar",
+    stale_reading: "Data sensor sudah terlalu lama",
+    missing_temp: "Suhu tidak tersedia",
+    missing_humidity: "Kelembaban tidak tersedia",
+    missing_pressure: "Tekanan udara tidak tersedia",
+    invalid_humidity_range: "Rentang kelembaban tidak valid",
+    invalid_temp_range: "Rentang suhu tidak valid",
+    invalid_pressure_range: "Rentang tekanan udara tidak valid",
+  };
+
+  if (labels[code]) return labels[code];
+
+  return code
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 interface ReasonCodesBreakdownProps {
   items: QualityEvent[];
   loading: boolean;
+  description?: string;
 }
 
-export function ReasonCodesBreakdown({ items, loading }: ReasonCodesBreakdownProps) {
+export function ReasonCodesBreakdown({
+  items,
+  loading,
+  description = "Menampilkan penyebab yang paling sering muncul pada log masalah kualitas yang sedang ditampilkan.",
+}: ReasonCodesBreakdownProps) {
   if (loading) {
     return (
       <Card>
@@ -45,18 +70,26 @@ export function ReasonCodesBreakdown({ items, loading }: ReasonCodesBreakdownPro
 
   return (
     <Card>
-      <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-        Kode Alasan
-      </p>
+      <div className="mb-3 flex flex-col gap-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+          Penyebab Masalah yang Paling Sering
+        </p>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          {description}
+        </p>
+      </div>
       {sorted.length === 0 ? (
-        <EmptyState message="Tidak ada kode alasan" detail="Kode alasan muncul saat masalah kualitas terdeteksi." />
+        <EmptyState
+          message="Belum ada penyebab yang tercatat"
+          detail="Penyebab akan muncul ketika sistem menemukan masalah pada kualitas data."
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {sorted.map(([code, count]) => (
             <li key={code} className="flex min-w-0 flex-col gap-1">
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <span className="min-w-0 break-all font-mono text-xs text-[var(--color-text)]">
-                  {code}
+                <span className="min-w-0 text-xs text-[var(--color-text)]">
+                  {formatReasonCode(code)}
                 </span>
                 <span className="shrink-0 text-xs font-medium tabular-nums text-[var(--color-text-muted)]">
                   {count}

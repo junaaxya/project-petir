@@ -22,6 +22,8 @@ export type IngestStatus = "accepted" | "partial" | "rejected";
 export type NodeStatus = "fresh" | "stale" | "offline" | "no_data";
 export type StreamKind = "cadence" | "event";
 export type StreamStatus = NodeStatus | "idle" | "unknown";
+export type WanFailoverPrimaryBadge = "ethernet-primary" | "wifi-fallback" | "unknown";
+export type WanFailoverUplinkKind = "ethernet" | "wifi" | "unknown";
 
 export interface Cursor {
   strategy?: CursorStrategy | null;
@@ -70,12 +72,73 @@ export interface StreamFreshness {
   status: StreamStatus;
 }
 
+export interface WanFailoverHealthCheck {
+  iface: string | null;
+  connection: string | null;
+  ipv4: string | null;
+  gateway: string | null;
+  ok: boolean | null;
+  detail: string | null;
+  route_metric: number | null;
+}
+
+export interface WanFailoverDecision {
+  eth_fail_count: number | null;
+  eth_recover_count: number | null;
+  fail_threshold: number | null;
+  recover_threshold: number | null;
+  last_change: string | null;
+  last_event: string | null;
+}
+
+export interface WanFailoverRoute {
+  iface: string | null;
+  gateway: string | null;
+  metric: number | null;
+  kind: string | null;
+  raw: string | null;
+}
+
+export interface WanFailoverFrontendSummary {
+  badge: WanFailoverPrimaryBadge | null;
+  message: string | null;
+  recommended_color: string | null;
+}
+
+export interface WanFailoverEvent {
+  ts_utc: string | null;
+  event_type: string | null;
+  active_uplink_iface: string | null;
+  active_uplink_kind: WanFailoverUplinkKind | string | null;
+  message: string | null;
+  details?: Record<string, unknown> | null;
+}
+
+export interface WanFailoverStatus {
+  available: boolean;
+  ts_utc: string | null;
+  mode: string | null;
+  active_uplink_iface: string | null;
+  active_uplink_kind: WanFailoverUplinkKind | string | null;
+  primary_badge: WanFailoverPrimaryBadge;
+  message: string;
+  decision: WanFailoverDecision;
+  checks: {
+    eth: WanFailoverHealthCheck;
+    wifi: WanFailoverHealthCheck;
+  };
+  default_routes: WanFailoverRoute[];
+  frontend_summary: WanFailoverFrontendSummary;
+  recent_events: WanFailoverEvent[];
+}
+
 export interface HealthResponse {
   node_id: string | null;
   node_status: NodeStatus;
   last_seen_utc: string | null;
   sync_lag_seconds: number | null;
   streams: StreamFreshness[];
+  wan_failover?: WanFailoverStatus | null;
 }
 
 export interface WeatherSampleRow {

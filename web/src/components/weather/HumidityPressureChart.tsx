@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { HistoryPoint } from "@/lib/types";
+import { getHumidity, getIlluminance, getPressure } from "@/lib/chart-fields";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
 
@@ -27,22 +28,24 @@ export function HumidityPressureChart({ series, loading }: HumidityPressureChart
         <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
           Kelembapan · Tekanan · Cahaya
         </p>
-        <EmptyState message="Tidak ada data di rentang ini" detail="Data akan muncul setelah node melakukan sinkronisasi." />
+        <EmptyState message="Tidak ada data di rentang ini" detail="Data akan muncul setelah sensor kembali sinkron." />
       </Card>
     );
   }
 
   const buckets = series.map((p) =>
-    new Date(p.bucket as string).toLocaleString([], {
+    new Date(p.bucket as string).toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     }),
   );
-  const humids = series.map((p) => (p.humidity_avg as number | null) ?? null);
-  const pressures = series.map((p) => (p.pressure_avg as number | null) ?? null);
-  const illums = series.map((p) => (p.illuminance_avg as number | null) ?? null);
+  const rows = series as (HistoryPoint & Record<string, unknown>)[];
+  const humids = rows.map((p) => getHumidity(p));
+  const pressures = rows.map((p) => getPressure(p));
+  const illums = rows.map((p) => getIlluminance(p));
 
   const option = {
     backgroundColor: "transparent",

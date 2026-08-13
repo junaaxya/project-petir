@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from app.availability_logger import SERVER_MONITOR_SOURCE
 from tests.conftest import NODE_ID
 
 
@@ -83,3 +84,211 @@ def test_system_summary_with_data(client, session):
     assert "info" in body["counts_by_level"]
     assert body["counts_by_level"]["info"] == 3
     assert len(body["recent"]) == 6
+
+
+def test_system_events_include_server_monitor_rows(client, session):
+    from app.models.ops import SystemEvent
+    from app.settings import settings
+
+    base = datetime(2026, 8, 7, 2, 0, tzinfo=timezone.utc)
+    session.add(
+        SystemEvent(
+            node_id=NODE_ID,
+            db_epoch=uuid.UUID(settings.availability_server_event_epoch),
+            ingest_run_id=None,
+            edge_id=999001,
+            ts_pi_utc=base,
+            source=SERVER_MONITOR_SOURCE,
+            level="warn",
+            event_type="node_offline",
+            message="Sensor cuaca offline: tidak ada data baru dari Raspberry Pi.",
+            created_at_utc=base,
+        )
+    )
+    session.commit()
+
+    r = client.get("/api/system/events")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["meta"]["count"] == 1
+    assert body["items"][0]["source"] == SERVER_MONITOR_SOURCE
+    assert body["items"][0]["event_type"] == "node_offline"
+
+
+def test_system_events_important_only_hides_heartbeat_but_keeps_status_transitions(client, session):
+    from app.models.ops import SystemEvent
+    from app.settings import settings
+
+    base = datetime(2026, 8, 7, 2, 0, tzinfo=timezone.utc)
+    epoch = uuid.uuid4()
+    run = _seed_run(session, epoch)
+    session.add_all(
+        [
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=999100,
+                ts_pi_utc=base,
+                source="weather_ingest",
+                level="info",
+                event_type="ingest_heartbeat",
+                message="weather ingest heartbeat",
+                created_at_utc=base,
+            ),
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=uuid.UUID(settings.availability_server_event_epoch),
+                ingest_run_id=None,
+                edge_id=999101,
+                ts_pi_utc=base + timedelta(minutes=1),
+                source=SERVER_MONITOR_SOURCE,
+                level="info",
+                event_type="node_online",
+                message="Sensor cuaca online kembali: data dari Raspberry Pi kembali diterima.",
+                created_at_utc=base + timedelta(minutes=1),
+            ),
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=999102,
+                ts_pi_utc=base + timedelta(minutes=2),
+                source="system",
+                level="warn",
+                event_type="sensor_warning",
+                message="Sensor warning",
+                created_at_utc=base + timedelta(minutes=2),
+            ),
+        ]
+    )
+    session.commit()
+
+    r = client.get("/api/system/events?important_only=true")
+    assert r.status_code == 200
+    body = r.json()
+    assert [item["event_type"] for item in body["items"]] == ["sensor_warning", "node_online"]
+
+
+def test_system_events_filter_by_event_group(client, session):
+    from app.models.ops import SystemEvent
+    from app.settings import settings
+
+    base = datetime(2026, 8, 7, 2, 0, tzinfo=timezone.utc)
+    epoch = uuid.uuid4()
+    run = _seed_run(session, epoch)
+    session.add_all(
+        [
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=999200,
+                ts_pi_utc=base,
+                source="weather_ingest",
+                level="info",
+                event_type="ingest_heartbeat",
+                message="weather ingest heartbeat",
+                created_at_utc=base,
+            ),
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=uuid.UUID(settings.availability_server_event_epoch),
+                ingest_run_id=None,
+                edge_id=999201,
+                ts_pi_utc=base + timedelta(minutes=1),
+                source=SERVER_MONITOR_SOURCE,
+                level="info",
+                event_type="node_online",
+                message="Sensor cuaca online kembali",
+                created_at_utc=base + timedelta(minutes=1),
+            ),
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=999202,
+                ts_pi_utc=base + timedelta(minutes=2),
+                source="system",
+                level="info",
+                event_type="weather_non_sample_event",
+                message="non sample event",
+                created_at_utc=base + timedelta(minutes=2),
+            ),
+        ]
+    )
+    session.commit()
+
+    r = client.get("/api/system/events?event_group=heartbeat")
+    assert r.status_code == 200
+    body = r.json()
+    assert [item["event_type"] for item in body["items"]] == ["ingest_heartbeat"]
+
+    r = client.get("/api/system/events?event_group=status")
+    assert r.status_code == 200
+    body = r.json()
+    assert [item["event_type"] for item in body["items"]] == ["node_online"]
+
+    r = client.get("/api/system/events?event_group=other")
+    assert r.status_code == 200
+    body = r.json()
+    assert [item["event_type"] for item in body["items"]] == ["weather_non_sample_event"]
+
+
+def test_system_events_technical_issues_hides_siren_audit_client(client, session):
+    from app.models.ops import SystemEvent
+
+    base = datetime(2026, 8, 12, 16, 0, tzinfo=timezone.utc)
+    epoch = uuid.uuid4()
+    run = _seed_run(session, epoch)
+    session.add_all(
+        [
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=999300,
+                ts_pi_utc=base,
+                source="siren_audit_client",
+                level="error",
+                event_type="siren_audit_poll_error",
+                message="Polling siren audit command failed",
+                created_at_utc=base,
+            ),
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=999301,
+                ts_pi_utc=base + timedelta(minutes=1),
+                source="weather_ingest",
+                level="error",
+                event_type="weather_reader_error",
+                message="Weather reader failed",
+                created_at_utc=base + timedelta(minutes=1),
+            ),
+            SystemEvent(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=999302,
+                ts_pi_utc=base + timedelta(minutes=2),
+                source="siren_audit_client",
+                level="info",
+                event_type="siren_audit_poll_empty",
+                message="No pending siren audit commands",
+                created_at_utc=base + timedelta(minutes=2),
+            ),
+        ]
+    )
+    session.commit()
+
+    r = client.get("/api/system/events?scope=technical_issues")
+    assert r.status_code == 200
+    body = r.json()
+    assert [item["event_type"] for item in body["items"]] == ["weather_reader_error"]
+
+    r = client.get("/api/system/events?event_group=other")
+    assert r.status_code == 200
+    body = r.json()
+    assert [item["event_type"] for item in body["items"]] == ["weather_reader_error", "siren_audit_poll_error"]

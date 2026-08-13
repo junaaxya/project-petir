@@ -12,9 +12,15 @@ class Settings(BaseSettings):
 
     dashboard_api_key: str = ""
     dashboard_auth_enabled: bool = False
+    siren_audit_cooldown_seconds: int = 60
+    siren_audit_operators_json: str = ""
 
     rate_limit_per_node: int = 120
     rate_limit_window_seconds: int = 60
+    availability_check_enabled: bool = True
+    availability_recovery_status: str = "fresh"
+    availability_server_event_epoch: str = "00000000-0000-0000-0000-000000000001"
+    wan_failover_snapshot_dir: str = ""
 
     cors_allow_origins: str = "http://localhost:3000"
 

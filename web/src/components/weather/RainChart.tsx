@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { HistoryPoint } from "@/lib/types";
+import { getRain } from "@/lib/chart-fields";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
 
@@ -21,28 +22,30 @@ export function RainChart({ series, loading }: RainChartProps) {
     );
   }
 
-  const hasRain = series.some((p) => (p.rain_max as number | null) != null);
+  const hasRain = series.some((p) => getRain(p as HistoryPoint & Record<string, unknown>) != null);
 
   if (series.length === 0 || !hasRain) {
     return (
       <Card>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-          Hujan
-        </p>
-        <EmptyState message="Tidak ada data hujan" detail="Data sensor hujan akan muncul di sini." />
+        <div className="mb-2 flex flex-col gap-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">Curah Hujan</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Akumulasi hujan (mm)</p>
+        </div>
+        <EmptyState message="Tidak ada data hujan" detail="Data curah hujan akan muncul setelah sensor kembali sinkron." />
       </Card>
     );
   }
 
   const buckets = series.map((p) =>
-    new Date(p.bucket as string).toLocaleString([], {
+    new Date(p.bucket as string).toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     }),
   );
-  const rains = series.map((p) => (p.rain_max as number | null) ?? 0);
+  const rains = series.map((p) => getRain(p as HistoryPoint & Record<string, unknown>) ?? 0);
 
   const option = {
     backgroundColor: "transparent",
@@ -82,9 +85,10 @@ export function RainChart({ series, loading }: RainChartProps) {
 
   return (
     <Card>
-      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-        Hujan
-      </p>
+      <div className="mb-2 flex flex-col gap-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">Curah Hujan</p>
+        <p className="text-xs text-[var(--color-text-muted)]">Akumulasi hujan (mm)</p>
+      </div>
       <ReactECharts option={option} style={{ height: "clamp(200px, 54vw, 250px)" }} notMerge />
     </Card>
   );

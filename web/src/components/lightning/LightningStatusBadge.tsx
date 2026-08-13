@@ -2,14 +2,15 @@
 
 import type { LightningStatus } from "@contracts";
 import { Badge } from "@/components/common/Badge";
+import { lightningStatusLabel } from "@/lib/uiLabels";
 
 const STATUS_LABELS: Record<LightningStatus, string> = {
-  quiet: "Tenang",
-  noise: "Derau",
-  disturber: "Gangguan",
-  activity: "Aktivitas",
-  saturated: "Jenuh",
-  no_data: "Tidak Ada Data",
+  quiet: lightningStatusLabel("quiet"),
+  noise: lightningStatusLabel("noise"),
+  disturber: lightningStatusLabel("disturber"),
+  activity: lightningStatusLabel("activity"),
+  saturated: lightningStatusLabel("saturated"),
+  no_data: lightningStatusLabel("no_data"),
 };
 
 const STATUS_VARIANTS: Record<LightningStatus, string> = {

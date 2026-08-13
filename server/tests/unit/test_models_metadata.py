@@ -19,6 +19,9 @@ ALL_TABLES = (
     "sync_cursors",
     "retention_policies",
     "ai_hook_results",
+    "forecast_results",
+    "siren_audit_requests",
+    "siren_audit_status_updates",
 ) + DATA_TABLES
 
 
@@ -32,7 +35,7 @@ def _unique_constraint_columns(table):
     ]
 
 
-def test_all_eleven_tables_present():
+def test_all_expected_tables_present():
     assert set(Base.metadata.tables) == set(ALL_TABLES)
 
 

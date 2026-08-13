@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from app.db import Base
 from app.models.ai import AiHookResult, RetentionPolicy
+from app.models.forecast import ForecastResult
 from app.models.lightning import LightningEvent, LightningMinuteSummary
 from app.models.ops import SystemEvent, WeatherQualityEvent
 from app.models.registry import EdgeNode, SyncCursor, SyncRun
+from app.models.siren import SirenAuditRequest, SirenAuditStatusUpdate
 from app.models.weather import WeatherMinuteSummary, WeatherSample
 
 __all__ = [
@@ -20,4 +22,7 @@ __all__ = [
     "SystemEvent",
     "RetentionPolicy",
     "AiHookResult",
+    "ForecastResult",
+    "SirenAuditRequest",
+    "SirenAuditStatusUpdate",
 ]

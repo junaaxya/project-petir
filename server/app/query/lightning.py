@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any, Optional
 
@@ -149,15 +150,33 @@ def lightning_events(
     event_type: Optional[str] = Query(default=None),
     node: Optional[str] = Query(default=None),
     limit: int = Query(default=200, ge=1, le=1000),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     from_dt, to_dt = parse_range(from_, to, "raw")
+    count_stmt = (
+        select(text("COUNT(*)"))
+        .select_from(LightningEvent)
+        .where(LightningEvent.ts_pi_utc >= from_dt)
+        .where(LightningEvent.ts_pi_utc < to_dt)
+    )
+    if node:
+        count_stmt = count_stmt.where(LightningEvent.node_id == node)
+    if event_type:
+        count_stmt = count_stmt.where(LightningEvent.event_type == event_type)
+    total_items = int(session.execute(count_stmt).scalar() or 0)
+    total_pages = max(1, math.ceil(total_items / page_size))
+    current_page = min(page, total_pages)
+    offset = (current_page - 1) * page_size
+
     stmt = (
         select(LightningEvent)
         .where(LightningEvent.ts_pi_utc >= from_dt)
         .where(LightningEvent.ts_pi_utc < to_dt)
         .order_by(LightningEvent.ts_pi_utc.desc())
-        .limit(limit)
+        .limit(page_size)
+        .offset(offset)
     )
     if node:
         stmt = stmt.where(LightningEvent.node_id == node)
@@ -166,4 +185,17 @@ def lightning_events(
     items = []
     for row in session.execute(stmt).scalars():
         items.append(_event_to_dict(row))
-    return {"node_id": node, "items": items, "meta": {"count": len(items)}}
+    return {
+        "node_id": node,
+        "items": items,
+        "meta": {
+            "count": len(items),
+            "page": current_page,
+            "page_size": page_size,
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "has_prev": current_page > 1,
+            "has_next": current_page < total_pages,
+            "requested_limit": limit,
+        },
+    }

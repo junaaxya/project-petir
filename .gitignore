@@ -9,6 +9,7 @@ web/.env.production
 
 # --- Agent / tooling internal state ---
 .sisyphus/
+.hermes/
 
 # --- Python ---
 .venv/

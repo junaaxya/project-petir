@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.availability_logger import run_availability_check
 from app.ai_hooks import run_hooks
 from app.db import get_session
 from app.models.ai import AiHookResult, RetentionPolicy
@@ -38,6 +39,13 @@ def trigger_retention(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return run_retention(session)
+
+
+@router.post("/availability/run")
+def trigger_availability_check(
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    return run_availability_check(session)
 
 
 @router.post("/ai/run")

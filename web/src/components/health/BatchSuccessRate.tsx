@@ -31,7 +31,7 @@ export function BatchSuccessRate({ runs, loading }: BatchSuccessRateProps) {
   return (
     <Card>
       <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-        Tingkat Keberhasilan Batch
+        Keberhasilan Sinkronisasi Data
       </p>
       {runs.length === 0 ? (
         <EmptyState message="Tidak ada proses ingest" detail="Riwayat proses akan muncul setelah sinkronisasi pertama." />
@@ -40,16 +40,16 @@ export function BatchSuccessRate({ runs, loading }: BatchSuccessRateProps) {
           <div>
             <p className="text-2xl font-bold text-[var(--color-text)]">{rate}</p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              {runs.filter((r) => r.status === "accepted").length} / {runs.length} proses diterima
+              {runs.filter((r) => r.status === "accepted").length} dari {runs.length} batch diterima penuh
             </p>
           </div>
           <div>
             <p className="text-2xl font-bold text-green-400">{totalAccepted.toLocaleString()}</p>
-            <p className="text-xs text-[var(--color-text-muted)]">baris diterima</p>
+            <p className="text-xs text-[var(--color-text-muted)]">baris data diterima</p>
           </div>
           <div>
             <p className="text-2xl font-bold text-red-400">{totalRejected.toLocaleString()}</p>
-            <p className="text-xs text-[var(--color-text-muted)]">baris ditolak</p>
+            <p className="text-xs text-[var(--color-text-muted)]">baris data ditolak</p>
           </div>
         </div>
       )}

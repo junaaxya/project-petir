@@ -4,6 +4,7 @@ import type { HealthStream } from "@/lib/types";
 import { StatusDot } from "@/components/common/StatusDot";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
+import { streamStatusLabel } from "@/lib/uiLabels";
 
 function fmtAge(seconds: number | null): string {
   if (seconds == null) return "—";
@@ -25,18 +26,6 @@ function fmtTs(ts: string | null): string {
 
 function streamKindLabel(kind: HealthStream["kind"]): string {
   return kind === "event" ? "aktivitas" : "periodik";
-}
-
-function statusLabel(status: HealthStream["status"]): string {
-  const labels: Record<HealthStream["status"], string> = {
-    fresh: "fresh",
-    stale: "stale",
-    offline: "offline",
-    no_data: "no data",
-    idle: "idle",
-    unknown: "unknown",
-  };
-  return labels[status];
 }
 
 interface FreshnessTableProps {
@@ -101,7 +90,7 @@ export function FreshnessTable({ streams, loading }: FreshnessTableProps) {
                     <span className="inline-flex items-center justify-end gap-1.5">
                       <StatusDot status={stream.status} pulse={stream.status === "fresh"} />
                       <span className="text-xs text-[var(--color-text-muted)]">
-                        {statusLabel(stream.status)}
+                        {streamStatusLabel(stream.status)}
                       </span>
                     </span>
                   </td>

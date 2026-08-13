@@ -1,12 +1,12 @@
 "use client";
 
-export type TimeRange = "1h" | "6h" | "24h" | "7d";
+export type TimeRange = "1d" | "7d" | "30d" | "365d";
 
 const OPTIONS: { label: string; value: TimeRange }[] = [
-  { label: "1h", value: "1h" },
-  { label: "6h", value: "6h" },
-  { label: "24h", value: "24h" },
-  { label: "7d", value: "7d" },
+  { label: "1 hari", value: "1d" },
+  { label: "7 hari", value: "7d" },
+  { label: "1 bulan", value: "30d" },
+  { label: "1 tahun", value: "365d" },
 ];
 
 interface TimeRangePickerProps {
@@ -39,17 +39,17 @@ export function timeRangeToFromTo(range: TimeRange): { from: string; to: string 
   const to = new Date();
   const from = new Date(to);
   switch (range) {
-    case "1h":
-      from.setHours(from.getHours() - 1);
-      break;
-    case "6h":
-      from.setHours(from.getHours() - 6);
-      break;
-    case "24h":
-      from.setHours(from.getHours() - 24);
+    case "1d":
+      from.setDate(from.getDate() - 1);
       break;
     case "7d":
       from.setDate(from.getDate() - 7);
+      break;
+    case "30d":
+      from.setMonth(from.getMonth() - 1);
+      break;
+    case "365d":
+      from.setFullYear(from.getFullYear() - 1);
       break;
   }
   return { from: from.toISOString(), to: to.toISOString() };

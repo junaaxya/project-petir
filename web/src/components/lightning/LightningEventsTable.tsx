@@ -1,9 +1,10 @@
 "use client";
 
-import type { LightningEvent } from "@/lib/api";
+import type { LightningEvent, PaginationMeta } from "@/lib/api";
 import type { LightningEventType } from "@contracts";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
+import { PaginationControls } from "@/components/common/PaginationControls";
 
 function fmtTs(ts: string): string {
   return new Date(ts).toLocaleString([], {
@@ -58,9 +59,11 @@ function exportCsv(events: LightningEvent[]) {
 interface LightningEventsTableProps {
   items: LightningEvent[];
   loading: boolean;
+  pagination?: PaginationMeta | null;
+  onPageChange?: (page: number) => void;
 }
 
-export function LightningEventsTable({ items, loading }: LightningEventsTableProps) {
+export function LightningEventsTable({ items, loading, pagination = null, onPageChange }: LightningEventsTableProps) {
   if (loading) {
     return (
       <Card>
@@ -94,55 +97,66 @@ export function LightningEventsTable({ items, loading }: LightningEventsTablePro
       {items.length === 0 ? (
         <EmptyState message="Belum ada sambaran" detail="Sensor belum mendeteksi sambaran petir. Info gangguan dan derau tersedia di tabel ringkasan di atas." />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-border)]">
-                <th className="pb-2 text-left text-xs font-medium text-[var(--color-text-muted)]">
-                  Waktu
-                </th>
-                <th className="pb-2 text-left text-xs font-medium text-[var(--color-text-muted)]">
-                  Tipe
-                </th>
-                <th className="pb-2 text-right text-xs font-medium text-[var(--color-text-muted)]">
-                  Jarak (km)
-                </th>
-                <th className="pb-2 text-right text-xs font-medium text-[var(--color-text-muted)]">
-                  Energi
-                </th>
-                <th className="pb-2 text-right text-xs font-medium text-[var(--color-text-muted)]">
-                  Tingkat Derau
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((event) => {
-                const typeColor =
-                  event.event_type ? EVENT_TYPE_COLORS[event.event_type] : "text-[var(--color-text-muted)]";
-                const typeLabel =
-                  event.event_type ? EVENT_TYPE_LABELS[event.event_type] : "—";
-                return (
-                  <tr
-                    key={event.edge_id}
-                    className="border-b border-[var(--color-border)] last:border-0"
-                  >
-                    <td className="py-2 text-[var(--color-text)]">{fmtTs(event.ts_pi_utc)}</td>
-                    <td className={`py-2 font-medium ${typeColor}`}>{typeLabel}</td>
-                    <td className="py-2 text-right text-[var(--color-text)]">
-                      {event.distance_km != null ? event.distance_km : "—"}
-                    </td>
-                    <td className="py-2 text-right text-[var(--color-text)]">
-                      {event.energy_raw != null ? event.energy_raw : "—"}
-                    </td>
-                    <td className="py-2 text-right text-[var(--color-text)]">
-                      {event.noise_level != null ? event.noise_level : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)]">
+                  <th className="pb-2 text-left text-xs font-medium text-[var(--color-text-muted)]">
+                    Waktu
+                  </th>
+                  <th className="pb-2 text-left text-xs font-medium text-[var(--color-text-muted)]">
+                    Tipe
+                  </th>
+                  <th className="pb-2 text-right text-xs font-medium text-[var(--color-text-muted)]">
+                    Jarak (km)
+                  </th>
+                  <th className="pb-2 text-right text-xs font-medium text-[var(--color-text-muted)]">
+                    Energi
+                  </th>
+                  <th className="pb-2 text-right text-xs font-medium text-[var(--color-text-muted)]">
+                    Tingkat Derau
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((event) => {
+                  const typeColor =
+                    event.event_type ? EVENT_TYPE_COLORS[event.event_type] : "text-[var(--color-text-muted)]";
+                  const typeLabel =
+                    event.event_type ? EVENT_TYPE_LABELS[event.event_type] : "—";
+                  return (
+                    <tr
+                      key={event.edge_id}
+                      className="border-b border-[var(--color-border)] last:border-0"
+                    >
+                      <td className="py-2 text-[var(--color-text)]">{fmtTs(event.ts_pi_utc)}</td>
+                      <td className={`py-2 font-medium ${typeColor}`}>{typeLabel}</td>
+                      <td className="py-2 text-right text-[var(--color-text)]">
+                        {event.distance_km != null ? event.distance_km : "—"}
+                      </td>
+                      <td className="py-2 text-right text-[var(--color-text)]">
+                        {event.energy_raw != null ? event.energy_raw : "—"}
+                      </td>
+                      <td className="py-2 text-right text-[var(--color-text)]">
+                        {event.noise_level != null ? event.noise_level : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {pagination && onPageChange && (
+            <PaginationControls
+              page={pagination.page}
+              totalPages={pagination.total_pages}
+              totalItems={pagination.total_items}
+              pageSize={pagination.page_size}
+              onPageChange={onPageChange}
+            />
+          )}
+        </>
       )}
     </Card>
   );

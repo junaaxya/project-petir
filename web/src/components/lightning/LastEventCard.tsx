@@ -18,9 +18,10 @@ function fmtTs(ts: string | null): string {
 interface LastEventCardProps {
   minute: LightningLatestMinute | null;
   loading: boolean;
+  offlineDetail?: string;
 }
 
-export function LastEventCard({ minute, loading }: LastEventCardProps) {
+export function LastEventCard({ minute, loading, offlineDetail }: LastEventCardProps) {
   if (loading) {
     return (
       <Card>
@@ -37,34 +38,42 @@ export function LastEventCard({ minute, loading }: LastEventCardProps) {
         Kejadian Terakhir
       </p>
       {!hasEvent ? (
-        <EmptyState message="Belum ada kejadian" detail="Kejadian petir akan muncul di sini setelah terdeteksi." />
+        <EmptyState
+          message={offlineDetail ? "Belum ada kejadian realtime" : "Belum ada kejadian"}
+          detail={offlineDetail ?? "Kejadian petir akan muncul di sini setelah terdeteksi."}
+        />
       ) : (
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-          <div>
-            <dt className="text-xs text-[var(--color-text-muted)]">Waktu</dt>
-            <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
-              {fmtTs(minute!.last_event_ts_utc)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--color-text-muted)]">Jarak</dt>
-            <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
-              {minute!.last_distance_km != null ? `${minute!.last_distance_km} km` : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--color-text-muted)]">Energi Maks</dt>
-            <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
-              {minute!.max_energy_raw != null ? String(minute!.max_energy_raw) : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--color-text-muted)]">Sumber</dt>
-            <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
-              {minute!.source ?? "—"}
-            </dd>
-          </div>
-        </dl>
+        <>
+          {offlineDetail && (
+            <p className="mb-3 text-xs text-[var(--color-text-muted)]">{offlineDetail}</p>
+          )}
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+            <div>
+              <dt className="text-xs text-[var(--color-text-muted)]">Waktu</dt>
+              <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
+                {fmtTs(minute!.last_event_ts_utc)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-text-muted)]">Jarak</dt>
+              <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
+                {minute!.last_distance_km != null ? `${minute!.last_distance_km} km` : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-text-muted)]">Energi Maks</dt>
+              <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
+                {minute!.max_energy_raw != null ? String(minute!.max_energy_raw) : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-text-muted)]">Sumber</dt>
+              <dd className="mt-0.5 text-sm font-medium text-[var(--color-text)]">
+                {minute!.source ?? "—"}
+              </dd>
+            </div>
+          </dl>
+        </>
       )}
     </Card>
   );

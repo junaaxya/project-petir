@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -119,3 +120,97 @@ def test_event_streams_become_unknown_when_node_is_offline(client, session, seed
     assert body["node_status"] == "offline"
     assert streams["lightning_minute_summary"]["status"] == "unknown"
     assert streams["lightning_minute_summary"]["status"] != "offline"
+
+
+def test_health_latest_wan_failover_fallback_when_snapshot_missing(client):
+    r = client.get("/api/health/latest")
+    assert r.status_code == 200
+    body = r.json()
+    wan = body["wan_failover"]
+
+    assert wan["available"] is False
+    assert wan["primary_badge"] == "unknown"
+    assert wan["message"] == "WAN failover status belum tersedia"
+    assert wan["recent_events"] == []
+
+
+def test_health_latest_reads_wan_failover_snapshot(client, monkeypatch, tmp_path):
+    node_dir = tmp_path / NODE_ID
+    node_dir.mkdir(parents=True)
+    (node_dir / "wan_failover_status.json").write_text(
+        json.dumps(
+            {
+                "ts_utc": "2026-08-12T01:02:03Z",
+                "mode": "prefer_eth",
+                "active_uplink_iface": "eth0",
+                "active_uplink_kind": "ethernet",
+                "decision": {
+                    "eth_fail_count": 0,
+                    "eth_recover_count": 2,
+                    "fail_threshold": 3,
+                    "recover_threshold": 2,
+                    "last_change": "2026-08-12T00:59:00Z",
+                    "last_event": "recover_to_ethernet",
+                },
+                "checks": {
+                    "eth": {
+                        "iface": "eth0",
+                        "connection": "wired",
+                        "ipv4": "192.168.1.20",
+                        "gateway": "192.168.1.1",
+                        "ok": True,
+                        "detail": "ping ok",
+                        "route_metric": 100,
+                    },
+                    "wifi": {
+                        "iface": "wlan0",
+                        "connection": "ssid-lab",
+                        "ipv4": "192.168.1.30",
+                        "gateway": "192.168.1.1",
+                        "ok": True,
+                        "detail": "standby",
+                        "route_metric": 600,
+                    },
+                },
+                "default_routes": [
+                    {"iface": "eth0", "gateway": "192.168.1.1", "metric": 100, "kind": "ethernet"}
+                ],
+                "frontend_summary": {
+                    "badge": "ethernet-primary",
+                    "message": "Ethernet aktif sebagai uplink utama",
+                    "recommended_color": "green",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (node_dir / "wan_failover_events_recent.json").write_text(
+        json.dumps(
+            [
+                {
+                    "ts_utc": "2026-08-12T00:59:00Z",
+                    "event_type": "recover_to_ethernet",
+                    "active_uplink_iface": "eth0",
+                    "active_uplink_kind": "ethernet",
+                    "message": "Recovered to ethernet",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("app.query.health.settings.wan_failover_snapshot_dir", str(tmp_path))
+
+    r = client.get("/api/health/latest")
+    assert r.status_code == 200
+    body = r.json()
+    wan = body["wan_failover"]
+
+    assert wan["available"] is True
+    assert wan["primary_badge"] == "ethernet-primary"
+    assert wan["active_uplink_iface"] == "eth0"
+    assert wan["active_uplink_kind"] == "ethernet"
+    assert wan["decision"]["last_event"] == "recover_to_ethernet"
+    assert wan["checks"]["eth"]["ok"] is True
+    assert wan["checks"]["wifi"]["route_metric"] == 600
+    assert wan["recent_events"][0]["event_type"] == "recover_to_ethernet"

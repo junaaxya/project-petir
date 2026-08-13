@@ -27,7 +27,7 @@ export function TempHumidityChart({ series, loading }: TempHumidityChartProps) {
         <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
           Suhu &amp; Kelembapan — 24 jam
         </p>
-        <EmptyState message="Tidak ada data di rentang ini" detail="Data akan muncul setelah node melakukan sinkronisasi." />
+        <EmptyState message="Tidak ada data di rentang ini" detail="Data akan muncul setelah sensor kembali sinkron." />
       </Card>
     );
   }

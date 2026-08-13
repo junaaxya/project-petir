@@ -35,6 +35,16 @@ class EdgeNode(Base):
     last_seen_utc: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    availability_status: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    availability_changed_at_utc: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    availability_last_event_type: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+    availability_last_event_at_utc: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("true")
     )

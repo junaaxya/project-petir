@@ -8,12 +8,16 @@ export type {
   HistoryPoint,
   HistoryResponse,
   ApiError,
+  WanFailoverPrimaryBadge,
+  WanFailoverUplinkKind,
 } from "@contracts";
 
 import type {
   NodeStatus as ContractNodeStatus,
   StreamKind as ContractStreamKind,
   StreamStatus as ContractStreamStatus,
+  WanFailoverPrimaryBadge as ContractWanFailoverPrimaryBadge,
+  WanFailoverUplinkKind as ContractWanFailoverUplinkKind,
 } from "@contracts";
 
 export interface WeatherLatestMinute {
@@ -48,10 +52,71 @@ export interface HealthStream {
   status: ContractStreamStatus;
 }
 
+export interface WanFailoverHealthCheck {
+  iface: string | null;
+  connection: string | null;
+  ipv4: string | null;
+  gateway: string | null;
+  ok: boolean | null;
+  detail: string | null;
+  route_metric: number | null;
+}
+
+export interface WanFailoverDecision {
+  eth_fail_count: number | null;
+  eth_recover_count: number | null;
+  fail_threshold: number | null;
+  recover_threshold: number | null;
+  last_change: string | null;
+  last_event: string | null;
+}
+
+export interface WanFailoverRoute {
+  iface: string | null;
+  gateway: string | null;
+  metric: number | null;
+  kind: string | null;
+  raw: string | null;
+}
+
+export interface WanFailoverFrontendSummary {
+  badge: ContractWanFailoverPrimaryBadge | null;
+  message: string | null;
+  recommended_color: string | null;
+}
+
+export interface WanFailoverEvent {
+  ts_utc: string | null;
+  event_type: string | null;
+  active_uplink_iface: string | null;
+  active_uplink_kind: ContractWanFailoverUplinkKind | string | null;
+  message: string | null;
+  details?: Record<string, unknown> | null;
+}
+
+export interface WanFailoverStatus {
+  available: boolean;
+  ts_utc: string | null;
+  mode: string | null;
+  active_uplink_iface: string | null;
+  active_uplink_kind: ContractWanFailoverUplinkKind | string | null;
+  primary_badge: ContractWanFailoverPrimaryBadge;
+  message: string;
+  decision: WanFailoverDecision;
+  checks: {
+    eth: WanFailoverHealthCheck;
+    wifi: WanFailoverHealthCheck;
+  };
+  default_routes: WanFailoverRoute[];
+  frontend_summary: WanFailoverFrontendSummary;
+  recent_events: WanFailoverEvent[];
+}
+
 export interface HealthLatestResponse {
   node_id: string | null;
   node_status: ContractNodeStatus;
   last_seen_utc: string | null;
   sync_lag_seconds: number | null;
   streams: HealthStream[];
+  wan_failover?: WanFailoverStatus | null;
 }
