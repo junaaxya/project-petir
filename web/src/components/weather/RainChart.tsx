@@ -10,10 +10,11 @@ const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
 interface RainChartProps {
   series: HistoryPoint[];
+  buckets: string[];
   loading: boolean;
 }
 
-export function RainChart({ series, loading }: RainChartProps) {
+export function RainChart({ series, buckets, loading }: RainChartProps) {
   if (loading) {
     return (
       <Card>
@@ -36,19 +37,12 @@ export function RainChart({ series, loading }: RainChartProps) {
     );
   }
 
-  const buckets = series.map((p) =>
-    new Date(p.bucket as string).toLocaleString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  );
   const rains = series.map((p) => getRain(p as HistoryPoint & Record<string, unknown>) ?? 0);
+  const largeDataset = series.length > 500;
 
   const option = {
     backgroundColor: "transparent",
+    animation: !largeDataset,
     grid: { top: 18, right: 8, bottom: 52, left: 8, containLabel: true },
     tooltip: {
       trigger: "axis",
@@ -77,6 +71,10 @@ export function RainChart({ series, loading }: RainChartProps) {
         name: "Hujan (mm)",
         type: "bar",
         data: rains,
+        large: largeDataset,
+        largeThreshold: 500,
+        progressive: 500,
+        progressiveThreshold: 500,
         itemStyle: { color: "#38bdf8", borderRadius: [2, 2, 0, 0] },
         barMaxWidth: 12,
       },

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from threading import Lock
+from time import monotonic
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
+from petir_contracts import DailyForecastItem, DailyForecastResponse
 
 from app.db import get_session
 from app.models.ops import WeatherQualityEvent
@@ -14,6 +17,7 @@ from app.models.weather import WeatherMinuteSummary, WeatherSample
 from app.query.auth import verify_dashboard_user
 from app.query.downsample import bucket_expr, parse_range
 from app.schemas.query import HistoryMeta, HistoryResponse, LatestResponse
+from app.services.daily_forecast import calculate_daily_forecast, forecast_ranges_wib
 
 router = APIRouter(prefix="/api/weather", tags=["weather"], dependencies=[Depends(verify_dashboard_user)])
 
@@ -30,12 +34,11 @@ _NUMERIC_AGG = {
     "sample_count": "sum",
 }
 
-_LAST_VALUE_AGG = {
-    "latest_wind_dir_deg": (
-        "minute_utc",
-        "latest_wind_dir_deg IS NOT NULL AND latest_wind_dir_deg <> 0"
-    ),
-}
+_DAILY_FORECAST_CACHE_TTL_SECONDS = 60.0
+_DAILY_FORECAST_MIN_POINTS = 30
+_DAILY_FORECAST_STALE_AFTER = timedelta(minutes=30)
+_daily_forecast_cache: dict[tuple[str, str], tuple[float, DailyForecastResponse]] = {}
+_daily_forecast_cache_lock = Lock()
 
 
 def _iso(dt) -> str:
@@ -105,6 +108,112 @@ def _summary_to_dict(row: WeatherMinuteSummary) -> dict[str, Any]:
     }
 
 
+def _get_cached_daily_forecast(key: tuple[str, str]) -> DailyForecastResponse | None:
+    now_monotonic = monotonic()
+    with _daily_forecast_cache_lock:
+        cached = _daily_forecast_cache.get(key)
+        if cached is None:
+            return None
+        expires_at, response = cached
+        if expires_at <= now_monotonic:
+            _daily_forecast_cache.pop(key, None)
+            return None
+        return response
+
+
+def _set_cached_daily_forecast(key: tuple[str, str], response: DailyForecastResponse) -> None:
+    with _daily_forecast_cache_lock:
+        if len(_daily_forecast_cache) >= 64:
+            _daily_forecast_cache.clear()
+        _daily_forecast_cache[key] = (monotonic() + _DAILY_FORECAST_CACHE_TTL_SECONDS, response)
+
+
+def clear_daily_forecast_cache() -> None:
+    """Clear only the short-lived in-memory forecast cache."""
+    with _daily_forecast_cache_lock:
+        _daily_forecast_cache.clear()
+
+
+@router.get("/daily-forecast", response_model=DailyForecastResponse)
+def weather_daily_forecast(
+    node: Optional[str] = Query(default=None),
+    session: Session = Depends(get_session),
+) -> DailyForecastResponse:
+    now = datetime.now(timezone.utc)
+    ranges = forecast_ranges_wib(now)
+    cache_key = (node or "__all__", ranges.local_date)
+    cached = _get_cached_daily_forecast(cache_key)
+    if cached is not None:
+        return cached
+
+    where = ["minute_utc >= :from_dt", "minute_utc < :to_dt"]
+    params: dict[str, Any] = {
+        "from_dt": ranges.baseline_start_utc,
+        "to_dt": ranges.tomorrow_start_utc,
+    }
+    if node:
+        where.append("node_id = :node")
+        params["node"] = node
+
+    # This endpoint is deliberately read-only: a single aggregate SELECT and
+    # no writes, migrations, seeds, or forecast-result persistence.
+    stmt = text(
+        f"""
+        SELECT
+            minute_utc AS bucket,
+            AVG(temperature_avg) AS temperature_avg,
+            AVG(humidity_avg) AS humidity_avg,
+            AVG(pressure_avg) AS pressure_avg,
+            AVG(illuminance_avg) AS illuminance_avg,
+            MAX(rain_max) AS rain_max,
+            AVG(wind_speed_avg) AS wind_speed_avg,
+            MAX(wind_speed_max) AS wind_speed_max
+        FROM weather_minute_summary
+        WHERE {' AND '.join(where)}
+        GROUP BY minute_utc
+        ORDER BY minute_utc ASC
+        """
+    )
+    rows = [dict(row) for row in session.execute(stmt, params).mappings().all()]
+    baseline_rows = [row for row in rows if row["bucket"] < ranges.today_start_utc]
+    today_rows = [row for row in rows if row["bucket"] >= ranges.today_start_utc]
+    latest_bucket = max((row["bucket"] for row in today_rows), default=None)
+    if len(today_rows) < _DAILY_FORECAST_MIN_POINTS:
+        status = "insufficient_data"
+    elif latest_bucket is None or latest_bucket < now - _DAILY_FORECAST_STALE_AFTER:
+        status = "stale_data"
+    else:
+        status = "available"
+    snapshots = (
+        calculate_daily_forecast(today_rows, baseline_rows, now=now)
+        if status == "available"
+        else []
+    )
+
+    response = DailyForecastResponse(
+        node_id=node,
+        forecast_date_wib=ranges.local_date,
+        today_label=ranges.today_label,
+        computed_at_utc=now.isoformat(),
+        status=status,
+        sample_count=len(today_rows),
+        latest_sample_utc=latest_bucket.isoformat() if latest_bucket else None,
+        items=[
+            DailyForecastItem(
+                kind=item.kind,
+                label=item.label,
+                score=item.score,
+                level=item.level,
+                peak_window=item.peak_window,
+                reasons=item.reasons,
+            )
+            for item in snapshots
+        ],
+    )
+    _set_cached_daily_forecast(cache_key, response)
+    return response
+
+
 @router.get("/history", response_model=HistoryResponse)
 def weather_history(
     interval: str = Query(default="1h"),
@@ -172,14 +281,7 @@ def _bucketed_series(session, interval, from_dt, to_dt, node) -> list[dict[str, 
     numeric_agg_cols = [
         f"{fn}({col}) AS {col}" for col, fn in _NUMERIC_AGG.items()
     ]
-    last_value_agg_cols = [
-        (
-            f"(ARRAY_AGG({col} ORDER BY {order_col} DESC) "
-            f"FILTER (WHERE {filter_expr}))[1] AS {col}"
-        )
-        for col, (order_col, filter_expr) in _LAST_VALUE_AGG.items()
-    ]
-    agg_cols = ", ".join([*numeric_agg_cols, *last_value_agg_cols])
+    agg_cols = ", ".join(numeric_agg_cols)
     where = ["minute_utc >= :from_dt", "minute_utc < :to_dt"]
     params: dict[str, Any] = {"from_dt": from_dt, "to_dt": to_dt}
     if node:
@@ -192,13 +294,79 @@ def _bucketed_series(session, interval, from_dt, to_dt, node) -> list[dict[str, 
         f"GROUP BY bucket ORDER BY bucket ASC"
     )
     rows = session.execute(sql, params).mappings().all()
+    dominant_directions = _dominant_wind_directions(
+        session, interval, from_dt, to_dt, node
+    )
     out = []
     for r in rows:
         d = dict(r)
         b = d.get("bucket")
+        d["latest_wind_dir_deg"] = dominant_directions.get(b)
         d["bucket"] = b.isoformat() if isinstance(b, datetime) else b
         out.append(d)
     return out
+
+
+def _dominant_wind_directions(
+    session, interval, from_dt, to_dt, node
+) -> dict[Any, float]:
+    use_raw_samples = (to_dt - from_dt) <= timedelta(days=7)
+    if use_raw_samples:
+        table = "weather_samples"
+        time_column = "ts_pi_utc"
+        direction_column = "wind_dir_deg"
+        speed_column = "wind_speed_ms"
+    else:
+        table = "weather_minute_summary"
+        time_column = "minute_utc"
+        direction_column = "latest_wind_dir_deg"
+        speed_column = "wind_speed_avg"
+
+    bucket = bucket_expr(interval, time_column)
+    sector = (
+        f"MOD(MOD(FLOOR(({direction_column} + 22.5) / 45)::integer, 8) + 8, 8)"
+    )
+    where = [
+        f"{time_column} >= :from_dt",
+        f"{time_column} < :to_dt",
+        f"{direction_column} IS NOT NULL",
+        f"COALESCE({speed_column}, 0) > 0",
+    ]
+    params: dict[str, Any] = {"from_dt": from_dt, "to_dt": to_dt}
+    if node:
+        where.append("node_id = :node")
+        params["node"] = node
+
+    sql = text(
+        f"""
+        WITH direction_counts AS (
+            SELECT
+                {bucket} AS bucket,
+                {sector} AS sector,
+                COUNT(*) AS direction_count,
+                SUM({speed_column}) AS total_speed
+            FROM {table}
+            WHERE {' AND '.join(where)}
+            GROUP BY 1, 2
+        ), ranked AS (
+            SELECT
+                bucket,
+                sector,
+                ROW_NUMBER() OVER (
+                    PARTITION BY bucket
+                    ORDER BY direction_count DESC, total_speed DESC, sector ASC
+                ) AS rank
+            FROM direction_counts
+        )
+        SELECT bucket, sector * 45.0 AS direction_deg
+        FROM ranked
+        WHERE rank = 1
+        """
+    )
+    return {
+        row["bucket"]: float(row["direction_deg"])
+        for row in session.execute(sql, params).mappings().all()
+    }
 
 
 @router.get("/quality-events")

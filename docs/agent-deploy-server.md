@@ -46,7 +46,7 @@ LANGKAH:
    - Opsi B (DIREKOMENDASIKAN): biarkan DASHBOARD_AUTH_ENABLED=false, lalu pasang Cloudflare Access
      (kebijakan email/SSO) pada hostname di Cloudflare. Auth di edge, tanpa kelola key.
    (Write-path ingest selalu dilindungi token per-node — ini hanya soal read-path dashboard.)
-6. cloudflared — TAMBAHKAN ingress untuk hostname petir.lab-ilkom.my.id mengarah LANGSUNG ke
+6. cloudflared — TAMBAHKAN ingress untuk hostname petirlabs.com mengarah LANGSUNG ke
    web container (service: http://localhost:3000), lalu route DNS-nya. JANGAN ubah ingress hostname lain.
    CATATAN PENTING: tunnel mengarah ke web:3000 (Next.js), BUKAN ke server:8000 dan BUKAN ke nginx.
    Next.js sudah mem-proxy /api/* ke server:8000 secara internal (rewrites di next.config.mjs,
@@ -54,18 +54,18 @@ LANGKAH:
    untuk hostname ini. (Detail: docs/nginx-cloudflare.md.)
    Contoh ingress:
      ingress:
-       - hostname: petir.lab-ilkom.my.id
+       - hostname: petirlabs.com
          service: http://localhost:3000
        - service: http_status:404
 7. (lewati) nginx tidak diperlukan untuk deployment satu-app ini. Tunnel → :3000 sudah cukup.
 
 VERIFIKASI (wajib lapor):
-- `curl -s https://petir.lab-ilkom.my.id/api/health/latest` → balas JSON (lewat tunnel → web:3000 → proxy ke server:8000).
-- Buka https://petir.lab-ilkom.my.id di browser → dashboard tampil (jika Opsi A, sertakan header X-API-Key).
+- `curl -s https://petirlabs.com/api/health/latest` → balas JSON (lewat tunnel → web:3000 → proxy ke server:8000).
+- Buka https://petirlabs.com di browser → dashboard tampil (jika Opsi A, sertakan header X-API-Key).
 - `docker compose ps` semua Up/healthy.
 - PostgreSQL TIDAK dapat diakses dari luar host. Server JUGA tidak ter-publish ke host
   (cek `docker compose ps` → hanya web yang punya port 3000 ter-publish).
-- Setelah Pi mulai sync: `curl https://petir.lab-ilkom.my.id/api/ingest/runs` menunjukkan run dengan rejected=0.
+- Setelah Pi mulai sync: `curl https://petirlabs.com/api/ingest/runs` menunjukkan run dengan rejected=0.
 
 ROLLBACK:
 - `docker compose down` (data tetap di volume petir_pg). Migrasi Alembic reversible.

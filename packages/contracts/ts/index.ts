@@ -2,7 +2,7 @@
 // Mirrors ../schema/*.json. Consumed by the Next.js dashboard (web/) for both
 // the ingest envelope shape and the read-path API response types.
 
-export const CONTRACT_VERSION = "2.0.0";
+export const CONTRACT_VERSION = "2.1.0";
 
 export type TableName =
   | "weather_samples"
@@ -265,4 +265,64 @@ export interface HistoryResponse {
 
 export interface ApiError {
   error: { code: string; message: string };
+}
+
+export type DailyForecastKind = "petir" | "hujan" | "angin";
+export type DailyForecastLevel = "rendah" | "sedang" | "tinggi";
+export type DailyForecastStatus = "available" | "insufficient_data" | "stale_data";
+
+export interface DailyForecastItem {
+  kind: DailyForecastKind;
+  label: string;
+  score: number;
+  level: DailyForecastLevel;
+  peak_window: string | null;
+  reasons: string[];
+}
+
+export interface DailyForecastResponse {
+  node_id: string | null;
+  forecast_date_wib: string;
+  today_label: string;
+  timezone: "Asia/Jakarta";
+  computed_at_utc: string;
+  status: DailyForecastStatus;
+  sample_count: number;
+  latest_sample_utc: string | null;
+  items: DailyForecastItem[];
+}
+
+export interface LightningEventItem {
+  edge_id: number;
+  ts_pi_utc: string;
+  event_type: LightningEventType | null;
+  distance_km: number | null;
+  energy_raw: number | null;
+  noise_level: number | null;
+  source: string | null;
+  device: string | null;
+}
+
+export interface PaginationMeta {
+  count: number;
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_prev: boolean;
+  has_next: boolean;
+  requested_limit?: number;
+  scope?: string;
+}
+
+export interface LightningEventsResponse {
+  node_id: string | null;
+  items: LightningEventItem[];
+  meta: PaginationMeta;
+}
+
+export interface LightningEventsExportResponse {
+  node_id: string | null;
+  items: LightningEventItem[];
+  meta: { count: number; scope: "all_filtered" };
 }

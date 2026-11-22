@@ -3,6 +3,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
+from sqlalchemy import select
+
 from tests.conftest import NODE_ID
 
 
@@ -66,6 +69,34 @@ def _seed_raw_samples(session, count: int = 6):
                 wind_dir_deg=45.0,
                 edge_ingest_run_id=i + 100,
                 created_at_utc=base + timedelta(seconds=i * 10),
+            )
+        )
+    session.commit()
+    return base
+
+
+def _add_raw_wind_samples(session, base, readings):
+    """Add (seconds, speed, direction) readings for direction aggregation tests."""
+    from app.models.weather import WeatherSample
+
+    epoch = uuid.uuid4()
+    run = _seed_run(session, epoch)
+    for i, (seconds, speed, direction) in enumerate(readings, start=1000):
+        ts = base + timedelta(seconds=seconds)
+        session.add(
+            WeatherSample(
+                node_id=NODE_ID,
+                db_epoch=epoch,
+                ingest_run_id=run,
+                edge_id=i,
+                ts_pi_utc=ts,
+                source="arduino",
+                device="weather-01",
+                sensor="wind",
+                wind_speed_ms=speed,
+                wind_dir_deg=direction,
+                edge_ingest_run_id=i,
+                created_at_utc=ts,
             )
         )
     session.commit()
@@ -159,6 +190,112 @@ def test_history_hourly_buckets(client, session):
     bucket = body["series"][0]
     assert bucket["sample_count"] == 72
     assert bucket["temperature_max"] == 33.0
+
+
+def test_history_keeps_zero_degree_direction_only_when_wind_is_measured(client, session):
+    from app.models.weather import WeatherMinuteSummary
+
+    base = _seed_summaries(session, count=2)
+    rows = list(
+        session.execute(
+            select(WeatherMinuteSummary).order_by(WeatherMinuteSummary.minute_utc.asc())
+        ).scalars()
+    )
+    rows[0].latest_wind_dir_deg = 0.0
+    rows[0].wind_speed_avg = 0.4
+    rows[0].wind_speed_max = 0.8
+    rows[1].latest_wind_dir_deg = 180.0
+    rows[1].wind_speed_avg = 0.0
+    rows[1].wind_speed_max = 0.0
+    session.commit()
+
+    _add_raw_wind_samples(
+        session,
+        base,
+        [
+            (5, 0.4, 0.0),
+            (65, 0.0, 180.0),
+        ],
+    )
+
+    r = client.get(
+        "/api/weather/history",
+        params={
+            "interval": "1m",
+            "from": (base - timedelta(minutes=1)).isoformat(),
+            "to": (base + timedelta(minutes=3)).isoformat(),
+        },
+    )
+
+    assert r.status_code == 200
+    series = r.json()["series"]
+    assert series[0]["latest_wind_dir_deg"] == 0.0
+    assert series[1]["latest_wind_dir_deg"] is None
+
+
+@pytest.mark.parametrize("interval", ["1m", "5m", "15m", "1h"])
+def test_history_uses_dominant_non_calm_direction_for_every_interval(
+    client, session, interval
+):
+    from app.models.weather import WeatherMinuteSummary
+
+    base = _seed_summaries(session, count=1)
+    summary = session.execute(select(WeatherMinuteSummary)).scalar_one()
+    # The legacy summary says North because its final raw sample was calm.
+    summary.latest_wind_dir_deg = 0.0
+    summary.wind_speed_avg = 0.5
+    summary.wind_speed_max = 1.0
+    session.commit()
+
+    # Southeast is the dominant measured direction. Calm 0-degree samples must
+    # not inflate North in any bucket size.
+    _add_raw_wind_samples(
+        session,
+        base,
+        [
+            (5, 1.0, 135.0),
+            (15, 0.8, 135.0),
+            (25, 0.6, 135.0),
+            (35, 0.7, 225.0),
+            (45, 0.0, 0.0),
+            (55, 0.0, 0.0),
+        ],
+    )
+
+    r = client.get(
+        "/api/weather/history",
+        params={
+            "interval": interval,
+            "from": (base - timedelta(seconds=1)).isoformat(),
+            "to": (base + timedelta(minutes=1)).isoformat(),
+        },
+    )
+
+    assert r.status_code == 200
+    assert r.json()["series"][0]["latest_wind_dir_deg"] == 135.0
+
+
+def test_long_history_uses_summary_direction_without_raw_samples(client, session):
+    from app.models.weather import WeatherMinuteSummary
+
+    base = _seed_summaries(session, count=3)
+    rows = list(session.execute(select(WeatherMinuteSummary)).scalars())
+    for row in rows:
+        row.latest_wind_dir_deg = 225.0
+        row.wind_speed_avg = 1.0
+    session.commit()
+
+    response = client.get(
+        "/api/weather/history",
+        params={
+            "interval": "1h",
+            "from": (base - timedelta(days=30)).isoformat(),
+            "to": (base + timedelta(days=1)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["series"][0]["latest_wind_dir_deg"] == 225.0
 
 
 def test_history_bad_range_returns_400(client):

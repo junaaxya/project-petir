@@ -69,7 +69,7 @@ def test_repeated_offline_check_does_not_duplicate_event(session, seeded_node):
 
 def test_logs_online_when_offline_node_recovers(session, seeded_node):
     now = datetime.now(timezone.utc)
-    seeded_node.last_seen_utc = now - timedelta(seconds=240)
+    seeded_node.last_seen_utc = now
     seeded_node.availability_status = "offline"
     session.commit()
 

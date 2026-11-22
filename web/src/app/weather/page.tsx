@@ -11,8 +11,10 @@ import { RainChart } from "@/components/weather/RainChart";
 import { WindRoseChart } from "@/components/weather/WindRoseChart";
 import { WeatherMetricChart } from "@/components/weather/WeatherMetricChart";
 import { WeatherDataTable } from "@/components/weather/WeatherDataTable";
+import { DeferredChart } from "@/components/weather/DeferredChart";
 import type { WeatherHistoryParams } from "@/lib/api";
 import { getHumidity, getIlluminance, getPressure, getWindSpeed } from "@/lib/chart-fields";
+import { formatChartBuckets, formatDataCoverage } from "@/lib/chartBuckets";
 import {
   dateRangeToApiRange,
   normalizeDateRange,
@@ -99,6 +101,8 @@ function WeatherPageContent() {
 
   const { data, isLoading } = useWeatherHistory(requestParams);
   const series = data?.series ?? [];
+  const bucketLabels = useMemo(() => formatChartBuckets(series), [series]);
+  const dataCoverage = useMemo(() => formatDataCoverage(series), [series]);
   const rawLimited = interval === "raw" && series.length >= RAW_LIMIT;
 
   return (
@@ -144,55 +148,80 @@ function WeatherPageContent() {
           <p className="text-sm text-[var(--color-text-muted)]">
             Setiap grafik ditampilkan terpisah agar lebih mudah dibaca dan lebih konsisten antar metrik.
           </p>
+          {dataCoverage && (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Data tersedia pada rentang terpilih:{" "}
+              <span className="font-medium text-[var(--color-text)]">{dataCoverage}</span>
+              {` · ${series.length.toLocaleString("id-ID")} baris`}
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TemperatureBandChart series={series} loading={isLoading} />
-          <WeatherMetricChart
-            title="Kelembapan"
-            unitLabel="Kelembapan (%)"
-            color="#38bdf8"
-            areaColor="rgba(56,189,248,0.06)"
-            series={series}
-            loading={isLoading}
-            getValue={getHumidity}
-            emptyMessage="Tidak ada data kelembapan"
-            emptyDetail="Data kelembapan akan muncul setelah sensor kembali sinkron."
-          />
-          <WeatherMetricChart
-            title="Tekanan Udara"
-            unitLabel="Tekanan udara (hPa)"
-            color="#a78bfa"
-            areaColor="rgba(167,139,250,0.06)"
-            series={series}
-            loading={isLoading}
-            getValue={getPressure}
-            emptyMessage="Tidak ada data tekanan udara"
-            emptyDetail="Data tekanan udara akan muncul setelah sensor kembali sinkron."
-          />
-          <WeatherMetricChart
-            title="Cahaya"
-            unitLabel="Cahaya (lx)"
-            color="#fbbf24"
-            areaColor="rgba(251,191,36,0.06)"
-            series={series}
-            loading={isLoading}
-            getValue={getIlluminance}
-            emptyMessage="Tidak ada data cahaya"
-            emptyDetail="Data cahaya akan muncul setelah sensor kembali sinkron."
-          />
-          <RainChart series={series} loading={isLoading} />
-          <WeatherMetricChart
-            title="Kecepatan Angin"
-            unitLabel="Kecepatan angin (m/s)"
-            color="#22c55e"
-            areaColor="rgba(34,197,94,0.06)"
-            series={series}
-            loading={isLoading}
-            getValue={getWindSpeed}
-            emptyMessage="Tidak ada data kecepatan angin"
-            emptyDetail="Data kecepatan angin akan muncul setelah sensor kembali sinkron."
-          />
-          <WindRoseChart series={series} loading={isLoading} />
+          <DeferredChart>
+            <TemperatureBandChart series={series} buckets={bucketLabels} loading={isLoading} />
+          </DeferredChart>
+          <DeferredChart>
+            <WeatherMetricChart
+              title="Kelembapan"
+              unitLabel="Kelembapan (%)"
+              color="#38bdf8"
+              areaColor="rgba(56,189,248,0.06)"
+              series={series}
+              buckets={bucketLabels}
+              loading={isLoading}
+              getValue={getHumidity}
+              emptyMessage="Tidak ada data kelembapan"
+              emptyDetail="Data kelembapan akan muncul setelah sensor kembali sinkron."
+            />
+          </DeferredChart>
+          <DeferredChart>
+            <WeatherMetricChart
+              title="Tekanan Udara"
+              unitLabel="Tekanan udara (hPa)"
+              color="#a78bfa"
+              areaColor="rgba(167,139,250,0.06)"
+              series={series}
+              buckets={bucketLabels}
+              loading={isLoading}
+              getValue={getPressure}
+              emptyMessage="Tidak ada data tekanan udara"
+              emptyDetail="Data tekanan udara akan muncul setelah sensor kembali sinkron."
+            />
+          </DeferredChart>
+          <DeferredChart>
+            <WeatherMetricChart
+              title="Cahaya"
+              unitLabel="Cahaya (lx)"
+              color="#fbbf24"
+              areaColor="rgba(251,191,36,0.06)"
+              series={series}
+              buckets={bucketLabels}
+              loading={isLoading}
+              getValue={getIlluminance}
+              emptyMessage="Tidak ada data cahaya"
+              emptyDetail="Data cahaya akan muncul setelah sensor kembali sinkron."
+            />
+          </DeferredChart>
+          <DeferredChart>
+            <RainChart series={series} buckets={bucketLabels} loading={isLoading} />
+          </DeferredChart>
+          <DeferredChart>
+            <WeatherMetricChart
+              title="Kecepatan Angin"
+              unitLabel="Kecepatan angin (m/s)"
+              color="#22c55e"
+              areaColor="rgba(34,197,94,0.06)"
+              series={series}
+              buckets={bucketLabels}
+              loading={isLoading}
+              getValue={getWindSpeed}
+              emptyMessage="Tidak ada data kecepatan angin"
+              emptyDetail="Data kecepatan angin akan muncul setelah sensor kembali sinkron."
+            />
+          </DeferredChart>
+          <DeferredChart minHeight={250}>
+            <WindRoseChart series={series} loading={isLoading} />
+          </DeferredChart>
         </div>
       </section>
 

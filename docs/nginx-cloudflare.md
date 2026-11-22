@@ -10,10 +10,14 @@ Browser ── HTTPS ──> Cloudflare edge ── tunnel ──> cloudflared �
                                                                      └─ /api/*   → proxied to server:8000
 ```
 
-The Cloudflare Tunnel ingress for `petir.lab-ilkom.my.id` points at
+The Cloudflare Tunnel ingress for `petirlabs.com` points at
 **`http://localhost:3000`** (the web service). The dashboard and the API share
 that single origin, and **Next.js proxies `/api/*` to the FastAPI server**
 internally (over the Docker network) via `rewrites()` in `web/next.config.mjs`.
+
+> Transition note: `petir.lab-ilkom.my.id` remains a temporary compatibility
+> hostname while Raspberry Pi clients migrate. Do not redirect or remove its
+> `/api/*` routes until every device has been verified against `petirlabs.com`.
 
 This means **no nginx is required** for this hostname — the Next.js server is the
 single entry point. The API container is not published to the host; the web
@@ -32,7 +36,7 @@ async rewrites() {
 - In docker compose, the web container gets `API_PROXY_TARGET=http://server:8000`
   (set in `docker-compose.yml`). `rewrites()` runs on the Next.js **server** and
   reads this at runtime in standalone mode.
-- The browser only ever talks to one origin (`https://petir.lab-ilkom.my.id`),
+- The browser only ever talks to one origin (`https://petirlabs.com`),
   so `NEXT_PUBLIC_API_BASE` is **empty** (relative `/api` calls). No CORS needed.
 
 ## cloudflared ingress
@@ -44,17 +48,17 @@ tunnel: <TUNNEL_ID>
 credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
 
 ingress:
-  - hostname: petir.lab-ilkom.my.id
+  - hostname: petirlabs.com
     service: http://localhost:3000
   - service: http_status:404
 ```
 
 ```bash
-cloudflared tunnel route dns <TUNNEL_ID> petir.lab-ilkom.my.id
+cloudflared tunnel route dns <TUNNEL_ID> petirlabs.com
 cloudflared tunnel run <TUNNEL_ID>
 ```
 
-> Additive: only add the `petir.lab-ilkom.my.id` ingress entry. Do not modify
+> Additive: only add the `petirlabs.com` ingress entry. Do not modify
 > other hostnames already served by the same tunnel.
 
 ## Bring up the stack

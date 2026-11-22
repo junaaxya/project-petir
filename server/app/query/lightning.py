@@ -4,9 +4,13 @@ import math
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
+from petir_contracts import (
+    LightningEventsExportResponse,
+    LightningEventsResponse,
+)
 
 from app.db import get_session
 from app.models.lightning import LightningEvent, LightningMinuteSummary
@@ -71,6 +75,8 @@ _NUMERIC_AGG = {
     "noise_event_count": "sum",
     "max_energy_raw": "max",
 }
+
+_EXPORT_MAX_ITEMS = 10_000
 
 
 @router.get("/history", response_model=HistoryResponse)
@@ -143,7 +149,11 @@ def _bucketed_series(
     return out
 
 
-@router.get("/events")
+@router.get(
+    "/events",
+    response_model=LightningEventsResponse,
+    response_model_exclude_none=True,
+)
 def lightning_events(
     from_: Optional[str] = Query(default=None, alias="from"),
     to: Optional[str] = Query(default=None),
@@ -154,7 +164,7 @@ def lightning_events(
     page_size: int = Query(default=20, ge=1, le=100),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    from_dt, to_dt = parse_range(from_, to, "raw")
+    from_dt, to_dt = parse_range(from_, to, "1h")
     count_stmt = (
         select(text("COUNT(*)"))
         .select_from(LightningEvent)
@@ -197,5 +207,76 @@ def lightning_events(
             "has_prev": current_page > 1,
             "has_next": current_page < total_pages,
             "requested_limit": limit,
+        },
+    }
+
+
+@router.get("/events/export", response_model=LightningEventsExportResponse)
+def export_lightning_events(
+    from_: Optional[str] = Query(default=None, alias="from"),
+    to: Optional[str] = Query(default=None),
+    event_type: Optional[str] = Query(default=None),
+    node: Optional[str] = Query(default=None),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    from_dt, to_dt = parse_range(from_, to, "1h")
+    stmt = (
+        select(LightningEvent)
+        .where(LightningEvent.ts_pi_utc >= from_dt)
+        .where(LightningEvent.ts_pi_utc < to_dt)
+        .order_by(LightningEvent.ts_pi_utc.desc())
+        .limit(_EXPORT_MAX_ITEMS + 1)
+    )
+    if node:
+        stmt = stmt.where(LightningEvent.node_id == node)
+    if event_type:
+        stmt = stmt.where(LightningEvent.event_type == event_type)
+
+    rows = session.execute(stmt).scalars().all()
+    if len(rows) > _EXPORT_MAX_ITEMS:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "EXPORT_TOO_LARGE",
+                "message": f"export exceeds {_EXPORT_MAX_ITEMS} events; narrow the date range",
+            },
+        )
+    return {
+        "node_id": node,
+        "items": [_event_to_dict(row) for row in rows],
+        "meta": {"count": len(rows), "scope": "all_filtered"},
+    }
+
+
+@router.get(
+    "/events/latest",
+    response_model=LightningEventsResponse,
+    response_model_exclude_none=True,
+)
+def latest_lightning_events(
+    node: Optional[str] = Query(default=None),
+    page_size: int = Query(default=20, ge=1, le=100),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    count_stmt = select(text("COUNT(*)")).select_from(LightningEvent)
+    if node:
+        count_stmt = count_stmt.where(LightningEvent.node_id == node)
+    total_items = int(session.execute(count_stmt).scalar() or 0)
+    stmt = select(LightningEvent).order_by(LightningEvent.ts_pi_utc.desc()).limit(page_size)
+    if node:
+        stmt = stmt.where(LightningEvent.node_id == node)
+    items = [_event_to_dict(row) for row in session.execute(stmt).scalars()]
+    return {
+        "node_id": node,
+        "items": items,
+        "meta": {
+            "count": len(items),
+            "page": 1,
+            "page_size": page_size,
+            "total_items": total_items,
+            "total_pages": 1,
+            "has_prev": False,
+            "has_next": False,
+            "scope": "latest",
         },
     }

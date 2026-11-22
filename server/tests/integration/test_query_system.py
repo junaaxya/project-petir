@@ -19,7 +19,7 @@ def _seed_run(session, epoch):
 def _seed_system_events(session, count: int = 6):
     from app.models.ops import SystemEvent
 
-    base = datetime(2026, 5, 30, 8, 0, tzinfo=timezone.utc)
+    base = datetime.now(timezone.utc) - timedelta(minutes=count * 5)
     epoch = uuid.uuid4()
     run = _seed_run(session, epoch)
     levels = ["info", "warn", "error", "info", "info", "critical"]
@@ -66,6 +66,20 @@ def test_system_events_filter_by_level(client, session):
         assert item["level"] == "error"
 
 
+def test_system_events_accept_month_range(client, session):
+    base = _seed_system_events(session, count=6)
+    r = client.get(
+        "/api/system/events",
+        params={
+            "from": (base - timedelta(days=30)).isoformat(),
+            "to": (base + timedelta(days=1)).isoformat(),
+            "page_size": 2,
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["meta"]["total_items"] == 6
+
+
 def test_system_summary_empty(client):
     r = client.get("/api/system/summary")
     assert r.status_code == 200
@@ -90,7 +104,7 @@ def test_system_events_include_server_monitor_rows(client, session):
     from app.models.ops import SystemEvent
     from app.settings import settings
 
-    base = datetime(2026, 8, 7, 2, 0, tzinfo=timezone.utc)
+    base = datetime.now(timezone.utc) - timedelta(minutes=10)
     session.add(
         SystemEvent(
             node_id=NODE_ID,
@@ -119,7 +133,7 @@ def test_system_events_important_only_hides_heartbeat_but_keeps_status_transitio
     from app.models.ops import SystemEvent
     from app.settings import settings
 
-    base = datetime(2026, 8, 7, 2, 0, tzinfo=timezone.utc)
+    base = datetime.now(timezone.utc) - timedelta(minutes=10)
     epoch = uuid.uuid4()
     run = _seed_run(session, epoch)
     session.add_all(
@@ -174,7 +188,7 @@ def test_system_events_filter_by_event_group(client, session):
     from app.models.ops import SystemEvent
     from app.settings import settings
 
-    base = datetime(2026, 8, 7, 2, 0, tzinfo=timezone.utc)
+    base = datetime.now(timezone.utc) - timedelta(minutes=10)
     epoch = uuid.uuid4()
     run = _seed_run(session, epoch)
     session.add_all(
@@ -238,7 +252,7 @@ def test_system_events_filter_by_event_group(client, session):
 def test_system_events_technical_issues_hides_siren_audit_client(client, session):
     from app.models.ops import SystemEvent
 
-    base = datetime(2026, 8, 12, 16, 0, tzinfo=timezone.utc)
+    base = datetime.now(timezone.utc) - timedelta(minutes=10)
     epoch = uuid.uuid4()
     run = _seed_run(session, epoch)
     session.add_all(

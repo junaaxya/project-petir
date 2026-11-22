@@ -32,8 +32,19 @@ from .rows import (
     WeatherQualityEventRow,
     WeatherSampleRow,
 )
+from .query import (
+    DailyForecastItem,
+    DailyForecastResponse,
+    ForecastKind,
+    ForecastLevel,
+    ForecastStatus,
+    LightningEventItem,
+    LightningEventsExportResponse,
+    LightningEventsResponse,
+    PaginationMeta,
+)
 
-CONTRACT_VERSION = "2.0.0"
+CONTRACT_VERSION = "2.1.0"
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -58,4 +69,13 @@ __all__ = [
     "WeatherMinuteSummaryRow",
     "WeatherQualityEventRow",
     "WeatherSampleRow",
+    "DailyForecastItem",
+    "DailyForecastResponse",
+    "ForecastKind",
+    "ForecastLevel",
+    "ForecastStatus",
+    "LightningEventItem",
+    "LightningEventsExportResponse",
+    "LightningEventsResponse",
+    "PaginationMeta",
 ]

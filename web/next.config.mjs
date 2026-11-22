@@ -15,12 +15,8 @@ const nextConfig = {
       },
     ];
   },
-  webpack(config) {
-    config.resolve.alias["@contracts"] = path.resolve(
-      __dirname,
-      "../packages/contracts/ts/index.ts",
-    );
-    return config;
+  turbopack: {
+    root: path.resolve(__dirname, ".."),
   },
 };
 

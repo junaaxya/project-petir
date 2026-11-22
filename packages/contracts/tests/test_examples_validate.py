@@ -7,14 +7,62 @@ import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
-from petir_contracts import ROW_MODELS, SyncBatchEnvelope, TableName
+from petir_contracts import (
+    CONTRACT_VERSION,
+    ROW_MODELS,
+    DailyForecastResponse,
+    LightningEventsResponse,
+    SyncBatchEnvelope,
+    TableName,
+)
 
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
 
 
 def _load(path: Path) -> dict:
     return json.loads(path.read_text())
+
+
+def test_contract_version_matches_version_file():
+    assert CONTRACT_VERSION == _load(SCHEMA_DIR / "version.json")["contract_version"]
+
+
+def test_query_response_schemas_and_models_are_valid():
+    for name in ("daily_forecast_response.json", "lightning_events_response.json"):
+        Draft202012Validator.check_schema(_load(SCHEMA_DIR / "query" / name))
+
+    forecast = DailyForecastResponse.model_validate(
+        {
+            "node_id": None,
+            "forecast_date_wib": "2026-11-21",
+            "today_label": "Sabtu, 21 November 2026",
+            "timezone": "Asia/Jakarta",
+            "computed_at_utc": "2026-11-21T12:00:00+00:00",
+            "status": "insufficient_data",
+            "sample_count": 0,
+            "latest_sample_utc": None,
+            "items": [],
+        }
+    )
+    events = LightningEventsResponse.model_validate(
+        {
+            "node_id": None,
+            "items": [],
+            "meta": {
+                "count": 0,
+                "page": 1,
+                "page_size": 20,
+                "total_items": 0,
+                "total_pages": 1,
+                "has_prev": False,
+                "has_next": False,
+            },
+        }
+    )
+    assert forecast.items == []
+    assert events.items == []
 
 
 def test_all_row_schemas_parse():

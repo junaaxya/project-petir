@@ -18,7 +18,7 @@ def _seed_run(session, epoch):
 def _seed_lightning_summaries(session, count: int = 5):
     from app.models.lightning import LightningMinuteSummary
 
-    base = datetime(2026, 5, 30, 10, 0, tzinfo=timezone.utc)
+    base = datetime.now(timezone.utc) - timedelta(minutes=count)
     epoch = uuid.uuid4()
     run = _seed_run(session, epoch)
     for i in range(count):
@@ -49,7 +49,7 @@ def _seed_lightning_summaries(session, count: int = 5):
 def _seed_lightning_events(session, count: int = 4):
     from app.models.lightning import LightningEvent
 
-    base = datetime(2026, 5, 30, 10, 0, tzinfo=timezone.utc)
+    base = datetime.now(timezone.utc) - timedelta(minutes=count)
     epoch = uuid.uuid4()
     run = _seed_run(session, epoch)
     for i in range(count):
@@ -134,3 +134,45 @@ def test_lightning_events_filter_by_type(client, session):
     body = r.json()
     for item in body["items"]:
         assert item["event_type"] == "lightning"
+
+
+def test_lightning_events_export_returns_all_filtered_rows_for_month_range(client, session):
+    base = _seed_lightning_events(session, count=4)
+    r = client.get(
+        "/api/lightning/events/export",
+        params={
+            "from": (base - timedelta(days=30)).isoformat(),
+            "to": (base + timedelta(days=1)).isoformat(),
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["meta"] == {"count": 4, "scope": "all_filtered"}
+    assert len(body["items"]) == 4
+
+
+def test_lightning_events_page_accepts_month_range(client, session):
+    base = _seed_lightning_events(session, count=4)
+    r = client.get(
+        "/api/lightning/events",
+        params={
+            "from": (base - timedelta(days=30)).isoformat(),
+            "to": (base + timedelta(days=1)).isoformat(),
+            "page_size": 2,
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["meta"]["total_items"] == 4
+    assert body["meta"]["total_pages"] == 2
+    assert len(body["items"]) == 2
+
+
+def test_lightning_latest_events_ignores_date_range(client, session):
+    _seed_lightning_events(session, count=4)
+    r = client.get("/api/lightning/events/latest?page_size=2")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["meta"]["scope"] == "latest"
+    assert body["meta"]["total_items"] == 4
+    assert len(body["items"]) == 2

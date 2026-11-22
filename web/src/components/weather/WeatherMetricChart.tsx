@@ -17,6 +17,7 @@ interface WeatherMetricChartProps {
   color: string;
   areaColor?: string;
   series: HistoryPoint[];
+  buckets: string[];
   loading: boolean;
   getValue: (row: Row) => number | null;
 }
@@ -29,6 +30,7 @@ export function WeatherMetricChart({
   color,
   areaColor,
   series,
+  buckets,
   loading,
   getValue,
 }: WeatherMetricChartProps) {
@@ -55,18 +57,10 @@ export function WeatherMetricChart({
     );
   }
 
-  const buckets = series.map((point) =>
-    new Date(point.bucket as string).toLocaleString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  );
-
+  const largeDataset = series.length > 500;
   const option = {
     backgroundColor: "transparent",
+    animation: !largeDataset,
     grid: { top: 24, right: 8, bottom: 52, left: 8, containLabel: true },
     tooltip: {
       trigger: "axis",
@@ -94,8 +88,11 @@ export function WeatherMetricChart({
         name: unitLabel,
         type: "line",
         data: values,
-        smooth: true,
+        smooth: !largeDataset,
         symbol: "none",
+        sampling: "lttb",
+        progressive: 500,
+        progressiveThreshold: 500,
         lineStyle: { color, width: 2 },
         areaStyle: areaColor ? { color: areaColor } : undefined,
         connectNulls: false,
