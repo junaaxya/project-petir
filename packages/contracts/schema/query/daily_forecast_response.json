@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://petirlabs.com/contracts/query/daily-forecast-response.json",
+  "title": "DailyForecastResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["node_id", "forecast_date_wib", "today_label", "timezone", "computed_at_utc", "status", "sample_count", "latest_sample_utc", "items"],
+  "properties": {
+    "node_id": {"type": ["string", "null"]},
+    "forecast_date_wib": {"type": "string", "format": "date"},
+    "today_label": {"type": "string"},
+    "timezone": {"const": "Asia/Jakarta"},
+    "computed_at_utc": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["available", "insufficient_data", "stale_data"]},
+    "sample_count": {"type": "integer", "minimum": 0},
+    "latest_sample_utc": {"type": ["string", "null"], "format": "date-time"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "label", "score", "level", "peak_window", "reasons"],
+        "properties": {
+          "kind": {"enum": ["petir", "hujan", "angin"]},
+          "label": {"type": "string"},
+          "score": {"type": "number"},
+          "level": {"enum": ["rendah", "sedang", "tinggi"]},
+          "peak_window": {"type": ["string", "null"]},
+          "reasons": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

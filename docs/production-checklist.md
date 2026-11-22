@@ -1,7 +1,7 @@
 # Production Checklist
 
 Go-live steps for PetirDashboard. Server lab runs the stack via Docker Compose
-behind the existing **nginx + Cloudflare Tunnel**; the Raspberry Pi 5 runs the
+behind the existing **Cloudflare Tunnel**, which points directly to Next.js; the Raspberry Pi 5 runs the
 edge sync worker. Neither machine needs a public IP — see
 [deployment-topology.md](./deployment-topology.md).
 
@@ -32,18 +32,18 @@ docker compose logs server    # confirm "alembic upgrade head" ran to 0004
   the server container.
 - Server runs `alembic upgrade head` on start (migrations 0001→0004).
 - `NEXT_PUBLIC_API_BASE` is empty → the dashboard calls the API with relative
-  `/api` paths (same origin via nginx). It is baked at **build** time via a
+  `/api` paths (same origin via Next.js). It is baked at **build** time via a
   Docker build ARG; changing it requires a rebuild (`docker compose build web`).
 
 ## 2. Cloudflare Tunnel (host)
 
 - [ ] `cloudflared` ingress points the public hostname directly at the web
-      container: `petir.lab-ilkom.my.id` → `http://localhost:3000`.
+      container: `petirlabs.com` → `http://localhost:3000`.
 - [ ] No nginx needed: Next.js proxies `/api/*` to `server:8000` internally
       (`rewrites()` in `web/next.config.mjs`, `API_PROXY_TARGET=http://server:8000`
       set in compose).
-- [ ] Browse `https://petir.lab-ilkom.my.id` → dashboard loads;
-      `https://petir.lab-ilkom.my.id/api/health/latest` responds (proxied through
+- [ ] Browse `https://petirlabs.com` → dashboard loads;
+      `https://petirlabs.com/api/health/latest` responds (proxied through
       Next.js). Full config in [nginx-cloudflare.md](./nginx-cloudflare.md).
 
 ## 3. Register the edge node → get its token
@@ -86,7 +86,7 @@ no Node/web toolchain). Use `--sparse` to keep only edge folders on disk
 ```bash
 ssh pi@<pi-host>
 git clone <repo-url> petir && cd petir
-cp edge/.env.example edge/.env   # set SERVER_URL=https://petir.lab-ilkom.my.id, NODE_ID, NODE_TOKEN, EDGE_DB_PATH
+cp edge/.env.example edge/.env   # set SERVER_URL=https://petirlabs.com, NODE_ID, NODE_TOKEN, EDGE_DB_PATH
 ```
 
 - [ ] Inspect live schema (read-only): `cd edge && python -m migrations.inspect "$EDGE_DB_PATH"`.
@@ -120,7 +120,7 @@ real Pi data (110459 rows, 0 rejected) — see [edge-schema-drift.md](./edge-sch
    systemctl is-active weather-ingest lightning-ingest
    ```
 5. On the server, confirm rows landing and rejected ≈ 0:
-   `GET https://petir.lab-ilkom.my.id/api/ingest/runs`.
+   `GET https://petirlabs.com/api/ingest/runs`.
 
 ## 7. Post-deploy verification
 

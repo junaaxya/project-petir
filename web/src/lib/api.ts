@@ -5,11 +5,26 @@ import type {
 import type {
   HistoryResponse,
   ApiError,
+  DailyForecastResponse,
+  LightningEventItem,
+  LightningEventsExportResponse,
+  LightningEventsResponse,
   LightningStatus,
   LightningEventType,
+  PaginationMeta as ContractPaginationMeta,
   QualityStatus,
   SystemLevel,
 } from "@contracts";
+
+export type {
+  DailyForecastItem,
+  DailyForecastLevel,
+  DailyForecastResponse,
+  LightningEventsExportResponse,
+  LightningEventsResponse,
+} from "@contracts";
+export type LightningEvent = LightningEventItem;
+export type PaginationMeta = ContractPaginationMeta;
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
@@ -50,6 +65,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export function getWeatherLatest(node?: string): Promise<WeatherLatestResponse> {
   const q = node ? `?node=${encodeURIComponent(node)}` : "";
   return apiFetch<WeatherLatestResponse>(`/api/weather/latest${q}`);
+}
+
+export function getDailyForecast(node?: string): Promise<DailyForecastResponse> {
+  const q = node ? `?node=${encodeURIComponent(node)}` : "";
+  return apiFetch<DailyForecastResponse>(`/api/weather/daily-forecast${q}`);
 }
 
 export interface WeatherHistoryParams {
@@ -117,35 +137,6 @@ export function getLightningHistory(params: LightningHistoryParams): Promise<His
   return apiFetch<HistoryResponse>(`/api/lightning/history?${p.toString()}`);
 }
 
-export interface LightningEvent {
-  edge_id: number;
-  ts_pi_utc: string;
-  event_type: LightningEventType | null;
-  distance_km: number | null;
-  energy_raw: number | null;
-  noise_level: number | null;
-  source: string | null;
-  device: string | null;
-}
-
-export interface LightningEventsResponse {
-  node_id: string | null;
-  items: LightningEvent[];
-  meta: PaginationMeta;
-}
-
-export interface PaginationMeta {
-  count: number;
-  page: number;
-  page_size: number;
-  total_items: number;
-  total_pages: number;
-  has_prev: boolean;
-  has_next: boolean;
-  requested_limit?: number;
-  scope?: string;
-}
-
 export interface LightningEventsParams {
   from?: string;
   to?: string;
@@ -167,6 +158,24 @@ export function getLightningEvents(params: LightningEventsParams): Promise<Light
   if (params.page_size != null) p.set("page_size", String(params.page_size));
   const qs = p.toString();
   return apiFetch<LightningEventsResponse>(`/api/lightning/events${qs ? `?${qs}` : ""}`);
+}
+
+export function exportLightningEvents(params: LightningEventsParams): Promise<LightningEventsExportResponse> {
+  const p = new URLSearchParams();
+  if (params.from) p.set("from", params.from);
+  if (params.to) p.set("to", params.to);
+  if (params.event_type) p.set("event_type", params.event_type);
+  if (params.node) p.set("node", params.node);
+  const qs = p.toString();
+  return apiFetch<LightningEventsExportResponse>(`/api/lightning/events/export${qs ? `?${qs}` : ""}`);
+}
+
+export function getLatestLightningEvents(params: Pick<LightningEventsParams, "node" | "page_size"> = {}): Promise<LightningEventsResponse> {
+  const p = new URLSearchParams();
+  if (params.node) p.set("node", params.node);
+  if (params.page_size != null) p.set("page_size", String(params.page_size));
+  const qs = p.toString();
+  return apiFetch<LightningEventsResponse>(`/api/lightning/events/latest${qs ? `?${qs}` : ""}`);
 }
 
 export interface SystemEvent {

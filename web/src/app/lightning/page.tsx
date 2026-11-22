@@ -12,7 +12,6 @@ import { LightningStatusBadge } from "@/components/lightning/LightningStatusBadg
 import { LastEventCard } from "@/components/lightning/LastEventCard";
 import { ActivityTimeline } from "@/components/lightning/ActivityTimeline";
 import { LightningEventsTable } from "@/components/lightning/LightningEventsTable";
-import { StrikeSummaryTable } from "@/components/lightning/StrikeSummaryTable";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
 import { InfoTooltip } from "@/components/common/InfoTooltip";
@@ -28,6 +27,7 @@ import {
 } from "@/lib/historyFilters";
 import { isRealtimeUnavailable, realtimeSnapshotDetail } from "@/lib/realtime";
 import { lightningStatusLabel, nodeStatusLabel } from "@/lib/uiLabels";
+import { exportLightningEvents } from "@/lib/api";
 
 function LightningPageContent() {
   const router = useRouter();
@@ -94,11 +94,13 @@ function LightningPageContent() {
     page_size: 20,
   });
 
+
   const status = latest?.minute?.status ?? null;
   const realtimeUnavailable = isRealtimeUnavailable(health?.node_status);
   const snapshotDetail = realtimeSnapshotDetail(health?.node_status, latest?.minute?.minute_utc);
   const series = history?.series ?? [];
   const items = events?.items ?? [];
+
 
   return (
     <div className="flex flex-col gap-5">
@@ -194,16 +196,21 @@ function LightningPageContent() {
         offlineDetail={realtimeUnavailable ? snapshotDetail : undefined}
       />
 
-      <ActivityTimeline series={series} loading={historyLoading} />
-
-      <StrikeSummaryTable items={items} loading={eventsLoading} />
+      <ActivityTimeline series={series} loading={historyLoading} interval={historyInterval} />
 
       <LightningEventsTable
         items={items}
         loading={eventsLoading}
         pagination={events?.meta ?? null}
         onPageChange={(nextPage) => setQuery({ page: String(nextPage) })}
+        onExport={async () => {
+          const result = await exportLightningEvents({ from, to, node: nodeParam });
+          return result.items;
+        }}
+        title="Rekaman Event Sensor"
+        detail="Grafik aktivitas memakai ringkasan per menit; daftar ini menampilkan rekaman individual sensor pada halaman saat ini."
       />
+
     </div>
   );
 }

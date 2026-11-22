@@ -82,7 +82,17 @@ function formatDevice(val: string): string {
   return val;
 }
 
-function fmt(val: unknown, key?: string): string {
+function hasMeasuredWind(row?: TableRow): boolean {
+  if (!row) return false;
+  const avg = Number(row.wind_speed_avg ?? row.wind_speed_ms ?? 0);
+  const max = Number(row.wind_speed_max ?? row.wind_speed_ms ?? 0);
+  return avg !== 0 || max !== 0;
+}
+
+function fmt(val: unknown, key?: string, row?: TableRow): string {
+  if ((key === "latest_wind_dir_deg" || key === "wind_dir_deg") && !hasMeasuredWind(row)) {
+    return "—";
+  }
   if (val == null) return "—";
   if (key === "latest_wind_dir_deg" || key === "wind_dir_deg") {
     return formatWindDirection(typeof val === "number" ? val : Number(val));
@@ -107,17 +117,19 @@ function fmt(val: unknown, key?: string): string {
   return String(val);
 }
 
+function csvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
 function exportCsv(series: TableRow[], columns: readonly Column[]) {
-  const header = columns.map((c) => c.label).join(",");
-  const rows = series.map((p) =>
-    columns.map((c) => {
-      const v = p[c.key as keyof TableRow];
-      if (v == null) return "";
-      if (typeof v === "string" && v.includes(",")) return `"${v}"`;
-      return String(v);
-    }).join(","),
+  const header = columns.map((c) => csvCell(c.label)).join(",");
+  const rows = series.map((row) =>
+    columns
+      .map((column) => csvCell(fmt(row[column.key as keyof TableRow], column.key, row)))
+      .join(","),
   );
-  const csv = [header, ...rows].join("\n");
+  // UTF-8 BOM makes Indonesian Excel recognize headers and symbols such as ° correctly.
+  const csv = `\ufeff${[header, ...rows].join("\n")}`;
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -143,6 +155,8 @@ export function WeatherDataTable({ series, loading, rawLimited = false }: Weathe
   const [page, setPage] = useState(1);
 
   useEffect(() => {
+    // Reset table controls when the result shape or dataset changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSortKey("bucket");
     setSortAsc(false);
     setPage(1);
@@ -218,7 +232,7 @@ export function WeatherDataTable({ series, loading, rawLimited = false }: Weathe
         </div>
         <button
           type="button"
-          onClick={() => exportCsv(rows, columns)}
+          onClick={() => exportCsv(sorted, columns)}
           className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-text)] transition-colors hover:border-blue-500 hover:text-blue-400"
         >
           Ekspor CSV
@@ -248,7 +262,7 @@ export function WeatherDataTable({ series, loading, rawLimited = false }: Weathe
               >
                 {columns.map((col) => (
                   <td key={col.key} className="whitespace-nowrap px-3 py-2 text-[var(--color-text)]">
-                    {fmt(row[col.key as keyof TableRow], col.key)}
+                    {fmt(row[col.key as keyof TableRow], col.key, row)}
                   </td>
                 ))}
               </tr>
@@ -256,25 +270,50 @@ export function WeatherDataTable({ series, loading, rawLimited = false }: Weathe
           </tbody>
         </table>
       </div>
-      <div className="mt-3 flex items-center justify-between text-xs text-[var(--color-text-muted)]">
+      <div className="mt-3 grid grid-cols-4 gap-2 text-xs text-[var(--color-text-muted)] sm:grid-cols-[auto_auto_1fr_auto_auto] sm:items-center">
         <button
           type="button"
+          aria-label="Ke halaman awal"
+          onClick={() => setPage(1)}
+          disabled={page <= 1}
+          className="col-start-1 row-start-2 min-h-9 rounded-md border border-[var(--color-border)] px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-40 sm:row-start-1 sm:px-3"
+        >
+          « Awal
+        </button>
+        <button
+          type="button"
+          aria-label="Ke halaman sebelumnya"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page <= 1}
-          className="rounded-md border border-[var(--color-border)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+          className="col-start-2 row-start-2 min-h-9 rounded-md border border-[var(--color-border)] px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-40 sm:row-start-1 sm:px-3"
         >
-          Sebelumnya
+          <span className="sm:hidden">‹</span>
+          <span className="hidden sm:inline">Sebelumnya</span>
         </button>
-        <span>
+        <span
+          aria-live="polite"
+          className="col-span-4 col-start-1 row-start-1 text-center font-medium sm:col-span-1 sm:col-start-3"
+        >
           Halaman {page} / {totalPages}
         </span>
         <button
           type="button"
+          aria-label="Ke halaman berikutnya"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page >= totalPages}
-          className="rounded-md border border-[var(--color-border)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+          className="col-start-3 row-start-2 min-h-9 rounded-md border border-[var(--color-border)] px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-40 sm:col-start-4 sm:row-start-1 sm:px-3"
         >
-          Berikutnya
+          <span className="sm:hidden">›</span>
+          <span className="hidden sm:inline">Berikutnya</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Ke halaman akhir"
+          onClick={() => setPage(totalPages)}
+          disabled={page >= totalPages}
+          className="col-start-4 row-start-2 min-h-9 rounded-md border border-[var(--color-border)] px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-40 sm:col-start-5 sm:row-start-1 sm:px-3"
+        >
+          Akhir »
         </button>
       </div>
     </Card>

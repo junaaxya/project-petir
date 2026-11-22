@@ -1,7 +1,7 @@
 import { Badge } from "@/components/common/Badge";
 import { StatusDot } from "@/components/common/StatusDot";
 import { LightningStatusBadge } from "@/components/lightning/LightningStatusBadge";
-import type { HealthLatestResponse, NodeStatus, HealthStream } from "@/lib/types";
+import type { HealthLatestResponse, NodeStatus } from "@/lib/types";
 import type { LightningLatestResponse } from "@/lib/api";
 import type { LightningStatus } from "@contracts";
 import { isRealtimeUnavailable, realtimeSnapshotDetail } from "@/lib/realtime";

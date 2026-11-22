@@ -1,7 +1,9 @@
 "use client";
 
 import type { LightningEvent, PaginationMeta } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
 import type { LightningEventType } from "@contracts";
+import { useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
 import { PaginationControls } from "@/components/common/PaginationControls";
@@ -36,16 +38,31 @@ const CSV_COLUMNS: { key: keyof LightningEvent; label: string }[] = [
   { key: "noise_level", label: "Tingkat Derau" },
 ];
 
+function formatWib(ts: string): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(ts));
+}
+
+function csvValue(value: unknown): string {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
 function exportCsv(events: LightningEvent[]) {
-  const header = CSV_COLUMNS.map((c) => c.label).join(",");
-  const rows = events.map((e) =>
-    CSV_COLUMNS.map((c) => {
-      const v = e[c.key];
-      if (v == null) return "";
-      if (typeof v === "string" && v.includes(",")) return `"${v}"`;
-      return String(v);
-    }).join(","),
-  );
+  const header = ["Waktu WIB", "Waktu UTC", ...CSV_COLUMNS.slice(1).map((c) => c.label)].join(",");
+  const rows = events.map((event) => [
+    formatWib(event.ts_pi_utc),
+    event.ts_pi_utc,
+    ...CSV_COLUMNS.slice(1).map((column) => event[column.key]),
+  ].map(csvValue).join(","));
   const csv = [header, ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -61,9 +78,31 @@ interface LightningEventsTableProps {
   loading: boolean;
   pagination?: PaginationMeta | null;
   onPageChange?: (page: number) => void;
+  onExport?: () => Promise<LightningEvent[]>;
+  title?: string;
+  detail?: string;
 }
 
-export function LightningEventsTable({ items, loading, pagination = null, onPageChange }: LightningEventsTableProps) {
+export function LightningEventsTable({ items, loading, pagination = null, onPageChange, onExport, title = "Daftar Kejadian Individual", detail = "Hanya sambaran petir yang tercatat sebagai kejadian individual" }: LightningEventsTableProps) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      exportCsv(onExport ? await onExport() : items);
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.code === "EXPORT_TOO_LARGE") {
+        setExportError("Hasil melebihi batas ekspor 10.000 kejadian. Persempit rentang tanggal atau filter, lalu coba lagi.");
+      } else {
+        setExportError("Ekspor gagal disiapkan. Coba lagi atau persempit rentang tanggal.");
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -77,22 +116,28 @@ export function LightningEventsTable({ items, loading, pagination = null, onPage
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-            Sambaran Terbaru
+            {title}
             <span className="ml-2 font-normal normal-case">({items.length} kejadian)</span>
           </p>
           <p className="mt-0.5 text-[10px] text-[var(--color-text-muted)]">
-            Hanya sambaran petir yang tercatat sebagai kejadian individual
+            {detail}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => exportCsv(items)}
-          disabled={items.length === 0}
+          onClick={() => void handleExport()}
+          disabled={items.length === 0 || exporting}
           className="shrink-0 self-start rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] transition-colors hover:border-blue-500 hover:text-blue-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--color-border)] disabled:hover:text-[var(--color-text)] sm:self-auto sm:py-1"
         >
-          Ekspor CSV
+          {exporting ? "Menyiapkan CSV..." : onExport ? "Ekspor semua (maks. 10.000)" : "Ekspor halaman ini"}
         </button>
       </div>
+
+      {exportError && (
+        <p role="alert" className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          {exportError}
+        </p>
+      )}
 
       {items.length === 0 ? (
         <EmptyState message="Belum ada sambaran" detail="Sensor belum mendeteksi sambaran petir. Info gangguan dan derau tersedia di tabel ringkasan di atas." />

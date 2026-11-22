@@ -13,18 +13,18 @@ Prompt siap-pakai untuk Hermes/agent AI yang menjalankan deploy komponen
 PERAN: Kamu men-deploy komponen SERVER + WEB dari project PetirDashboard di server lab ini.
 
 KONTEKS SISTEM:
-- Server lab TIDAK punya IP publik. Akses publik lewat Cloudflare Tunnel (cloudflared) + nginx
-  yang SUDAH ADA dan berjalan di host ini.
-- Tugasmu: jalankan stack (PostgreSQL + FastAPI + Next.js) via Docker Compose, lalu sambungkan
-  ke nginx + tunnel yang sudah ada (ADITIF — jangan rusak konfigurasi nginx/tunnel lain).
+- Server lab TIDAK punya IP publik. Akses publik lewat Cloudflare Tunnel (cloudflared)
+  yang SUDAH ADA dan berjalan di host ini; hostname PetirLabs tidak memakai nginx.
+- Tugasmu: jalankan stack (PostgreSQL + FastAPI + Next.js) via Docker Compose, lalu tambahkan
+  ingress tunnel langsung ke Next.js (ADITIF — jangan rusak hostname/tunnel lain).
 - Repo: https://github.com/junaaxya/project-petir.git
 - Baca docs/production-checklist.md dan docs/nginx-cloudflare.md di repo — ikuti itu.
 
 ⛔ ATURAN KESELAMATAN:
 1. JANGAN commit/expose secret. File .env JANGAN di-commit (sudah di .gitignore).
 2. JANGAN publish PostgreSQL ke internet. Compose memakai `expose` (hanya antar-container) — biarkan begitu.
-3. Konfigurasi nginx + cloudflared bersifat ADITIF: tambahkan server block / ingress untuk
-   hostname PetirDashboard saja. JANGAN ubah/hapus site atau tunnel lain yang sudah ada.
+3. Konfigurasi cloudflared bersifat ADITIF: tambahkan ingress untuk hostname
+   PetirDashboard saja. JANGAN ubah/hapus hostname atau tunnel lain yang sudah ada.
 4. Dashboard akan PUBLIK lewat tunnel — WAJIB diamankan (lihat langkah 5). Jangan biarkan terbuka.
 
 LANGKAH:
@@ -46,7 +46,7 @@ LANGKAH:
    - Opsi B (DIREKOMENDASIKAN): biarkan DASHBOARD_AUTH_ENABLED=false, lalu pasang Cloudflare Access
      (kebijakan email/SSO) pada hostname di Cloudflare. Auth di edge, tanpa kelola key.
    (Write-path ingest selalu dilindungi token per-node — ini hanya soal read-path dashboard.)
-6. cloudflared — TAMBAHKAN ingress untuk hostname petir.lab-ilkom.my.id mengarah LANGSUNG ke
+6. cloudflared — TAMBAHKAN ingress untuk hostname petirlabs.com mengarah LANGSUNG ke
    web container (service: http://localhost:3000), lalu route DNS-nya. JANGAN ubah ingress hostname lain.
    CATATAN PENTING: tunnel mengarah ke web:3000 (Next.js), BUKAN ke server:8000 dan BUKAN ke nginx.
    Next.js sudah mem-proxy /api/* ke server:8000 secara internal (rewrites di next.config.mjs,
@@ -54,18 +54,18 @@ LANGKAH:
    untuk hostname ini. (Detail: docs/nginx-cloudflare.md.)
    Contoh ingress:
      ingress:
-       - hostname: petir.lab-ilkom.my.id
+       - hostname: petirlabs.com
          service: http://localhost:3000
        - service: http_status:404
 7. (lewati) nginx tidak diperlukan untuk deployment satu-app ini. Tunnel → :3000 sudah cukup.
 
 VERIFIKASI (wajib lapor):
-- `curl -s https://petir.lab-ilkom.my.id/api/health/latest` → balas JSON (lewat tunnel → web:3000 → proxy ke server:8000).
-- Buka https://petir.lab-ilkom.my.id di browser → dashboard tampil (jika Opsi A, sertakan header X-API-Key).
+- `curl -s https://petirlabs.com/api/health/latest` → balas JSON (lewat tunnel → web:3000 → proxy ke server:8000).
+- Buka https://petirlabs.com di browser → dashboard tampil (jika Opsi A, sertakan header X-API-Key).
 - `docker compose ps` semua Up/healthy.
 - PostgreSQL TIDAK dapat diakses dari luar host. Server JUGA tidak ter-publish ke host
   (cek `docker compose ps` → hanya web yang punya port 3000 ter-publish).
-- Setelah Pi mulai sync: `curl https://petir.lab-ilkom.my.id/api/ingest/runs` menunjukkan run dengan rejected=0.
+- Setelah Pi mulai sync: `curl https://petirlabs.com/api/ingest/runs` menunjukkan run dengan rejected=0.
 
 ROLLBACK:
 - `docker compose down` (data tetap di volume petir_pg). Migrasi Alembic reversible.

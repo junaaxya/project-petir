@@ -8,7 +8,7 @@ kedua mesin tidak punya IP publik.
 
 Arsitektur ini **PUSH-only** (AGENTS.md non-negotiable #2):
 
-- **Pi yang memulai semua koneksi** → `POST https://petir.lab-ilkom.my.id/api/ingest/sync-batch`.
+- **Pi yang memulai semua koneksi** → `POST https://petirlabs.com/api/ingest/sync-batch`.
 - **Server tidak pernah menghubungi Pi.**
 
 Maka hanya server lab yang butuh endpoint publik. Pi berperan sebagai *client*
@@ -25,8 +25,8 @@ domain publik) meneruskan request masuk melalui tunnel itu. Jadi:
  Arduino → weather_edge.db (SQLite)                                 cloudflared  (outbound tunnel)
  sync worker (systemd, single-run)                                       │
         │  HTTPS POST (outbound)                                          ▼
-        │  https://petir.lab-ilkom.my.id/api/ingest/sync-batch       web:3000  (Next.js)
-        └───────────────────────────►  [ petir.lab-ilkom.my.id ] ──tunnel──►  ├─ /        → dashboard
+        │  https://petirlabs.com/api/ingest/sync-batch       web:3000  (Next.js)
+        └───────────────────────────►  [ petirlabs.com ] ──tunnel──►  ├─ /        → dashboard
                                             domain publik                      └─ /api/*   → proxy ke
                                                                                   server:8000 (FastAPI)
                                                                         docker compose:
@@ -37,13 +37,13 @@ Tunnel mengarah **langsung ke web:3000 (Next.js)**. Next.js mem-proxy `/api/*` k
 `server:8000` secara internal (lewat `rewrites()` di `next.config.mjs`), jadi
 **nginx tidak diperlukan** untuk hostname ini. Kedua mesin **hanya membuat koneksi
 keluar**. Cloudflare adalah titik temu publik. **Tidak perlu** IP publik, port
-forwarding, atau VPN. Pi cukup tahu URL `https://petir.lab-ilkom.my.id`.
+forwarding, atau VPN. Pi cukup tahu URL `https://petirlabs.com`.
 
 ### Tiga syarat yang harus benar
 1. Cloudflare Tunnel ingress hostname → `http://localhost:3000` (web container).
    Next.js otomatis mem-proxy `/api/*` ke server. Lihat [nginx-cloudflare.md](./nginx-cloudflare.md).
 2. Pi punya akses internet keluar (HTTPS 443 ke Cloudflare). Biasanya sudah ada.
-3. `SERVER_URL` di `edge/.env` = `https://petir.lab-ilkom.my.id` (domain tunnel, bukan IP).
+3. `SERVER_URL` di `edge/.env` = `https://petirlabs.com` (domain tunnel, bukan IP).
 
 ---
 
@@ -142,8 +142,9 @@ packages/contracts/# di-COPY ke dalam image saat build
 docker-compose.yml # postgres + server + web
 ```
 
-Di depan compose: **nginx (host)** + **cloudflared (host)** — keduanya di luar
-compose, mengikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
+Di depan compose, **cloudflared (host)** meneruskan hostname langsung ke port
+web `localhost:3000`. Next.js meneruskan `/api/*` ke `server:8000`; nginx tidak
+digunakan untuk hostname PetirLabs. Ikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
 
 ---
 
@@ -155,12 +156,13 @@ compose, mengikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
 3. Worker membaca baris baru (cursor: `edge_id` untuk event, `change_seq` untuk
    summary), menormalkan kosakata sensor (`healthy→ok`, dst — lihat
    [edge-schema-drift.md](./edge-schema-drift.md)), lalu `POST` batch ke
-   `https://petir.lab-ilkom.my.id/api/ingest/sync-batch` dengan header `Authorization:
+   `https://petirlabs.com/api/ingest/sync-batch` dengan header `Authorization:
    Bearer <NODE_TOKEN>`.
-4. Cloudflare → tunnel → nginx → `server:8000`. Server memvalidasi tiap baris
+4. Cloudflare → tunnel → Next.js `web:3000` → rewrite `/api/*` → `server:8000`.
+   Server memvalidasi tiap baris
    terhadap kontrak, upsert idempotent ke Postgres, balas `accepted_cursor`.
 5. Worker menyimpan `accepted_cursor` verbatim; cursor maju hanya setelah ACK 2xx.
-6. Dashboard (`web`) membaca Postgres lewat `/api/...` (same-origin via nginx) dan
+6. Dashboard (`web`) membaca Postgres lewat `/api/...` (same-origin via Next.js) dan
    menampilkan data.
 
 ---
@@ -170,7 +172,8 @@ compose, mengikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
 Detail lengkap di [edge-schema-drift.md](./edge-schema-drift.md). Ringkas:
 
 1. **Server lab dulu**: `cp .env.example .env` (isi secret kuat), `docker compose up -d`.
-2. **nginx + cloudflared**: arahkan `/api/`→8000, `/`→3000; tunnel ke nginx.
+2. **cloudflared**: arahkan `petirlabs.com` langsung ke `http://localhost:3000`;
+   Next.js menangani `/` dan mem-proxy `/api/*` ke FastAPI.
 3. **Daftarkan node** di tabel `edge_nodes` → dapat `NODE_TOKEN`.
 4. **Pi**: kirim `edge/` + `packages/contracts/` + `scripts/`, jalankan
    `bootstrap-edge.sh` (backup DB dulu → migrasi additive → dry-run).

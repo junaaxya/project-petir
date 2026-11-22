@@ -16,8 +16,9 @@ function buildWindRoseData(series: Row[]): number[] {
   const counts = new Array<number>(8).fill(0);
   for (const p of series) {
     const deg = getWindDir(p);
-    const speed = getWindSpeed(p);
-    if (deg == null || deg === 0 || speed == null || speed === 0) continue;
+    const avgSpeed = getWindSpeed(p);
+    const maxSpeed = (p.wind_speed_max as number | null | undefined) ?? avgSpeed;
+    if (deg == null || ((avgSpeed ?? 0) === 0 && (maxSpeed ?? 0) === 0)) continue;
     const idx = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
     counts[idx]++;
   }
@@ -41,7 +42,8 @@ export function WindRoseChart({ series, loading }: WindRoseChartProps) {
   const hasWind = series.some(
     (p) => {
       const s = getWindSpeed(p as Row);
-      return s != null && s > 0;
+      const max = ((p as Row).wind_speed_max as number | null | undefined) ?? s;
+      return (s ?? 0) !== 0 || (max ?? 0) !== 0;
     },
   );
 
@@ -66,12 +68,13 @@ export function WindRoseChart({ series, loading }: WindRoseChartProps) {
 
   const option = {
     backgroundColor: "transparent",
+    animation: series.length <= 500,
     tooltip: {
       trigger: "item",
       backgroundColor: "#1a1d27",
       borderColor: "#2a2d3a",
       textStyle: { color: "#e2e8f0", fontSize: 12 },
-        formatter: (params: { name: string; value: number }) =>
+      formatter: (params: { name: string; value: number }) =>
         `${params.name}: ${params.value} pembacaan`,
     },
     polar: { radius: "70%" },

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useWeatherLatest } from "@/hooks/useLatest";
 import { useHealth } from "@/hooks/useHealth";
 import { useLightningLatest } from "@/hooks/useLightningLatest";
+import { useLatestLightningEvents } from "@/hooks/useLightningEvents";
 import { StatusStrip } from "@/components/overview/StatusStrip";
 import { DailyForecastSection } from "@/components/overview/DailyForecastSection";
 import { OverviewGrid } from "@/components/overview/OverviewGrid";
@@ -11,6 +12,7 @@ import { LightningOverviewSection } from "@/components/overview/LightningOvervie
 import { NodeSelect } from "@/components/common/NodeSelect";
 import { formatRelativeFromIso } from "@/lib/realtime";
 import type { NodeStatus } from "@/lib/types";
+import { LightningEventsTable } from "@/components/lightning/LightningEventsTable";
 
 function formatWeatherSource(val?: string | null): string {
   if (!val) return "—";
@@ -93,6 +95,7 @@ export default function OverviewPage() {
   const { data: latest, isLoading: latestLoading } = useWeatherLatest(nodeParam);
   const { data: health, isLoading: healthLoading } = useHealth(nodeParam);
   const { data: lightning, isLoading: lightningLoading } = useLightningLatest(nodeParam);
+  const { data: latestEvents, isLoading: latestEventsLoading } = useLatestLightningEvents(nodeParam);
   const weatherFreshness = getWeatherFreshness(health?.node_status, latest?.minute?.minute_utc);
 
   return (
@@ -115,6 +118,14 @@ export default function OverviewPage() {
       <DailyForecastSection node={nodeParam} />
 
       <LightningOverviewSection lightning={lightning} lightningLoading={lightningLoading} nodeStatus={health?.node_status} />
+
+      <LightningEventsTable
+        items={latestEvents?.items ?? []}
+        loading={latestEventsLoading}
+        pagination={null}
+        title="Kejadian Terbaru"
+        detail="Event terbaru sensor, tidak dibatasi filter rentang waktu halaman Petir"
+      />
 
       <section className="flex flex-col gap-4">
         <div className="space-y-2">

@@ -10,10 +10,11 @@ const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
 interface TemperatureBandChartProps {
   series: HistoryPoint[];
+  buckets: string[];
   loading: boolean;
 }
 
-export function TemperatureBandChart({ series, loading }: TemperatureBandChartProps) {
+export function TemperatureBandChart({ series, buckets, loading }: TemperatureBandChartProps) {
   if (loading) {
     return (
       <Card>
@@ -34,22 +35,15 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
     );
   }
 
-  const buckets = series.map((p) =>
-    new Date(p.bucket as string).toLocaleString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  );
   const rows = series as (HistoryPoint & Record<string, unknown>)[];
   const mins = rows.map((p) => getTempMin(p));
   const maxs = rows.map((p) => getTempMax(p));
   const avgs = rows.map((p) => getTempAvg(p));
+  const largeDataset = series.length > 500;
 
   const option = {
     backgroundColor: "transparent",
+    animation: !largeDataset,
     grid: { top: 56, right: 8, bottom: 52, left: 8, containLabel: true },
     tooltip: {
       trigger: "axis",
@@ -88,8 +82,11 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
         name: "Min",
         type: "line",
         data: mins,
-        smooth: true,
+        smooth: !largeDataset,
         symbol: "none",
+        sampling: "lttb",
+        progressive: 500,
+        progressiveThreshold: 500,
         lineStyle: { color: "#38bdf8", width: 1, type: "dashed" },
         areaStyle: { color: "rgba(56,189,248,0.06)" },
         connectNulls: false,
@@ -98,8 +95,11 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
         name: "Maks",
         type: "line",
         data: maxs,
-        smooth: true,
+        smooth: !largeDataset,
         symbol: "none",
+        sampling: "lttb",
+        progressive: 500,
+        progressiveThreshold: 500,
         lineStyle: { color: "#f97316", width: 1, type: "dashed" },
         areaStyle: { color: "rgba(249,115,22,0.06)" },
         connectNulls: false,
@@ -108,8 +108,11 @@ export function TemperatureBandChart({ series, loading }: TemperatureBandChartPr
         name: "Rata²",
         type: "line",
         data: avgs,
-        smooth: true,
+        smooth: !largeDataset,
         symbol: "none",
+        sampling: "lttb",
+        progressive: 500,
+        progressiveThreshold: 500,
         lineStyle: { color: "#facc15", width: 2 },
         connectNulls: false,
       },

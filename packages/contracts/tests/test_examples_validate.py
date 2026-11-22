@@ -7,14 +7,122 @@ import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
-from petir_contracts import ROW_MODELS, SyncBatchEnvelope, TableName
+from petir_contracts import (
+    CONTRACT_VERSION,
+    ROW_MODELS,
+    DailyForecastResponse,
+    LightningEventsExportResponse,
+    LightningEventsResponse,
+    SyncBatchEnvelope,
+    TableName,
+)
 
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
 
 
 def _load(path: Path) -> dict:
     return json.loads(path.read_text())
+
+
+def test_contract_version_matches_version_file():
+    assert CONTRACT_VERSION == _load(SCHEMA_DIR / "version.json")["contract_version"]
+
+
+def test_query_response_schemas_and_models_are_valid():
+    event = {
+        "edge_id": 42,
+        "ts_pi_utc": "2026-11-21T12:00:00+00:00",
+        "event_type": "lightning",
+        "distance_km": 12.0,
+        "energy_raw": 900,
+        "noise_level": 1,
+        "source": "arduino",
+        "device": "as3935",
+    }
+    cases = [
+        (
+            "daily_forecast_response.json",
+            {
+                "node_id": None,
+                "forecast_date_wib": "2026-11-21",
+                "today_label": "Sabtu, 21 November 2026",
+                "timezone": "Asia/Jakarta",
+                "computed_at_utc": "2026-11-21T12:00:00+00:00",
+                "status": "insufficient_data",
+                "sample_count": 0,
+                "latest_sample_utc": None,
+                "items": [],
+            },
+            DailyForecastResponse,
+        ),
+        (
+            "lightning_events_response.json",
+            {
+                "node_id": None,
+                "items": [event],
+                "meta": {
+                    "count": 1,
+                    "page": 1,
+                    "page_size": 20,
+                    "total_items": 1,
+                    "total_pages": 1,
+                    "has_prev": False,
+                    "has_next": False,
+                    "requested_limit": 200,
+                },
+            },
+            LightningEventsResponse,
+        ),
+        (
+            "lightning_events_export_response.json",
+            {
+                "node_id": None,
+                "items": [event],
+                "meta": {"count": 1, "scope": "all_filtered"},
+            },
+            LightningEventsExportResponse,
+        ),
+    ]
+
+    for schema_name, payload, model in cases:
+        schema = _load(SCHEMA_DIR / "query" / schema_name)
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema).validate(payload)
+        assert model.model_validate(payload).items is not None
+
+
+def test_query_event_enum_rejects_contract_drift():
+    payload = {
+        "node_id": None,
+        "items": [
+            {
+                "edge_id": 42,
+                "ts_pi_utc": "2026-11-21T12:00:00+00:00",
+                "event_type": "meteor",
+                "distance_km": None,
+                "energy_raw": None,
+                "noise_level": None,
+                "source": None,
+                "device": None,
+            }
+        ],
+        "meta": {
+            "count": 1,
+            "page": 1,
+            "page_size": 20,
+            "total_items": 1,
+            "total_pages": 1,
+            "has_prev": False,
+            "has_next": False,
+        },
+    }
+    schema = _load(SCHEMA_DIR / "query" / "lightning_events_response.json")
+    with pytest.raises(Exception):
+        Draft202012Validator(schema).validate(payload)
+    with pytest.raises(Exception):
+        LightningEventsResponse.model_validate(payload)
 
 
 def test_all_row_schemas_parse():

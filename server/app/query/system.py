@@ -82,7 +82,7 @@ def system_events(
     page_size: int = Query(default=20, ge=1, le=100),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    from_dt, to_dt = parse_range(from_, to, "raw")
+    from_dt, to_dt = parse_range(from_, to, "1h")
     count_stmt = (
         select(func.count())
         .select_from(SystemEvent)
@@ -147,7 +147,7 @@ def system_summary(
     scope: SystemEventScope = Query(default="all"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    from_dt, to_dt = parse_range(from_, to, "raw")
+    from_dt, to_dt = parse_range(from_, to, "1h")
     effective_scope: SystemEventScope = "important" if important_only and scope == "all" else scope
 
     base = (

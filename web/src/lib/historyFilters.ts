@@ -2,7 +2,7 @@ export type HistoryRangePreset = "1d" | "7d" | "30d" | "365d" | "custom";
 
 export const HISTORY_RANGE_OPTIONS: { label: string; value: HistoryRangePreset }[] = [
   { label: "1 hari", value: "1d" },
-  { label: "7 hari", value: "7d" },
+  { label: "1 minggu", value: "7d" },
   { label: "1 bulan", value: "30d" },
   { label: "1 tahun", value: "365d" },
   { label: "Custom", value: "custom" },
