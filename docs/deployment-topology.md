@@ -142,8 +142,9 @@ packages/contracts/# di-COPY ke dalam image saat build
 docker-compose.yml # postgres + server + web
 ```
 
-Di depan compose: **nginx (host)** + **cloudflared (host)** — keduanya di luar
-compose, mengikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
+Di depan compose, **cloudflared (host)** meneruskan hostname langsung ke port
+web `localhost:3000`. Next.js meneruskan `/api/*` ke `server:8000`; nginx tidak
+digunakan untuk hostname PetirLabs. Ikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
 
 ---
 
@@ -157,10 +158,11 @@ compose, mengikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
    [edge-schema-drift.md](./edge-schema-drift.md)), lalu `POST` batch ke
    `https://petirlabs.com/api/ingest/sync-batch` dengan header `Authorization:
    Bearer <NODE_TOKEN>`.
-4. Cloudflare → tunnel → nginx → `server:8000`. Server memvalidasi tiap baris
+4. Cloudflare → tunnel → Next.js `web:3000` → rewrite `/api/*` → `server:8000`.
+   Server memvalidasi tiap baris
    terhadap kontrak, upsert idempotent ke Postgres, balas `accepted_cursor`.
 5. Worker menyimpan `accepted_cursor` verbatim; cursor maju hanya setelah ACK 2xx.
-6. Dashboard (`web`) membaca Postgres lewat `/api/...` (same-origin via nginx) dan
+6. Dashboard (`web`) membaca Postgres lewat `/api/...` (same-origin via Next.js) dan
    menampilkan data.
 
 ---
@@ -170,7 +172,8 @@ compose, mengikuti [nginx-cloudflare.md](./nginx-cloudflare.md).
 Detail lengkap di [edge-schema-drift.md](./edge-schema-drift.md). Ringkas:
 
 1. **Server lab dulu**: `cp .env.example .env` (isi secret kuat), `docker compose up -d`.
-2. **nginx + cloudflared**: arahkan `/api/`→8000, `/`→3000; tunnel ke nginx.
+2. **cloudflared**: arahkan `petirlabs.com` langsung ke `http://localhost:3000`;
+   Next.js menangani `/` dan mem-proxy `/api/*` ke FastAPI.
 3. **Daftarkan node** di tabel `edge_nodes` → dapat `NODE_TOKEN`.
 4. **Pi**: kirim `edge/` + `packages/contracts/` + `scripts/`, jalankan
    `bootstrap-edge.sh` (backup DB dulu → migrasi additive → dry-run).

@@ -1,6 +1,7 @@
 "use client";
 
 import type { LightningEvent, PaginationMeta } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
 import type { LightningEventType } from "@contracts";
 import { useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -84,11 +85,19 @@ interface LightningEventsTableProps {
 
 export function LightningEventsTable({ items, loading, pagination = null, onPageChange, onExport, title = "Daftar Kejadian Individual", detail = "Hanya sambaran petir yang tercatat sebagai kejadian individual" }: LightningEventsTableProps) {
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handleExport = async () => {
     setExporting(true);
+    setExportError(null);
     try {
       exportCsv(onExport ? await onExport() : items);
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.code === "EXPORT_TOO_LARGE") {
+        setExportError("Hasil melebihi batas ekspor 10.000 kejadian. Persempit rentang tanggal atau filter, lalu coba lagi.");
+      } else {
+        setExportError("Ekspor gagal disiapkan. Coba lagi atau persempit rentang tanggal.");
+      }
     } finally {
       setExporting(false);
     }
@@ -120,9 +129,15 @@ export function LightningEventsTable({ items, loading, pagination = null, onPage
           disabled={items.length === 0 || exporting}
           className="shrink-0 self-start rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] transition-colors hover:border-blue-500 hover:text-blue-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--color-border)] disabled:hover:text-[var(--color-text)] sm:self-auto sm:py-1"
         >
-          {exporting ? "Menyiapkan CSV..." : onExport ? "Ekspor semua hasil" : "Ekspor halaman ini"}
+          {exporting ? "Menyiapkan CSV..." : onExport ? "Ekspor semua (maks. 10.000)" : "Ekspor halaman ini"}
         </button>
       </div>
+
+      {exportError && (
+        <p role="alert" className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          {exportError}
+        </p>
+      )}
 
       {items.length === 0 ? (
         <EmptyState message="Belum ada sambaran" detail="Sensor belum mendeteksi sambaran petir. Info gangguan dan derau tersedia di tabel ringkasan di atas." />

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://petirlabs.com/contracts/query/lightning-events-export-response.json",
+  "title": "LightningEventsExportResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["node_id", "items", "meta"],
+  "properties": {
+    "node_id": {"type": ["string", "null"]},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["edge_id", "ts_pi_utc", "event_type", "distance_km", "energy_raw", "noise_level", "source", "device"],
+        "properties": {
+          "edge_id": {"type": "integer"},
+          "ts_pi_utc": {"type": "string", "format": "date-time"},
+          "event_type": {"enum": ["lightning", "disturber", "noise", null]},
+          "distance_km": {"type": ["number", "null"]},
+          "energy_raw": {"type": ["integer", "null"]},
+          "noise_level": {"type": ["integer", "null"]},
+          "source": {"type": ["string", "null"]},
+          "device": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "scope"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 0},
+        "scope": {"const": "all_filtered"}
+      }
+    }
+  }
+}

@@ -151,6 +151,28 @@ def test_lightning_events_export_returns_all_filtered_rows_for_month_range(clien
     assert len(body["items"]) == 4
 
 
+def test_lightning_events_export_reports_limit_with_structured_error(client, session, monkeypatch):
+    from app.query import lightning
+
+    monkeypatch.setattr(lightning, "_EXPORT_MAX_ITEMS", 3)
+    base = _seed_lightning_events(session, count=4)
+    r = client.get(
+        "/api/lightning/events/export",
+        params={
+            "from": (base - timedelta(days=30)).isoformat(),
+            "to": (base + timedelta(days=1)).isoformat(),
+        },
+    )
+
+    assert r.status_code == 413
+    assert r.json() == {
+        "error": {
+            "code": "EXPORT_TOO_LARGE",
+            "message": "export exceeds 3 events; narrow the date range",
+        }
+    }
+
+
 def test_lightning_events_page_accepts_month_range(client, session):
     base = _seed_lightning_events(session, count=4)
     r = client.get(

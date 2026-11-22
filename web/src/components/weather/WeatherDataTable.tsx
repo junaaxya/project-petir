@@ -155,6 +155,8 @@ export function WeatherDataTable({ series, loading, rawLimited = false }: Weathe
   const [page, setPage] = useState(1);
 
   useEffect(() => {
+    // Reset table controls when the result shape or dataset changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSortKey("bucket");
     setSortAsc(false);
     setPage(1);

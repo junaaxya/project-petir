@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useWeatherHistory } from "@/hooks/useWeatherHistory";
 import { NodeSelect } from "@/components/common/NodeSelect";
@@ -57,7 +57,7 @@ function WeatherPageContent() {
   const nodeParam = node || undefined;
   const { from, to } = useMemo(() => dateRangeToApiRange(fromDate, toDate), [fromDate, toDate]);
 
-  const setQuery = (updates: Record<string, string | null>) => {
+  const setQuery = useCallback((updates: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(updates)) {
       if (value == null || value === "") next.delete(key);
@@ -65,7 +65,7 @@ function WeatherPageContent() {
     }
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  };
+  }, [pathname, router, searchParams]);
 
   const handlePresetChange = (preset: HistoryRangePreset) => {
     if (preset === "custom") {
@@ -86,7 +86,7 @@ function WeatherPageContent() {
     if (rawDisabled && interval === "raw") {
       setQuery({ interval: "1h" });
     }
-  }, [interval, rawDisabled]);
+  }, [interval, rawDisabled, setQuery]);
 
   const requestParams = useMemo<WeatherHistoryParams>(
     () => ({
@@ -100,7 +100,7 @@ function WeatherPageContent() {
   );
 
   const { data, isLoading } = useWeatherHistory(requestParams);
-  const series = data?.series ?? [];
+  const series = useMemo(() => data?.series ?? [], [data?.series]);
   const bucketLabels = useMemo(() => formatChartBuckets(series), [series]);
   const dataCoverage = useMemo(() => formatDataCoverage(series), [series]);
   const rawLimited = interval === "raw" && series.length >= RAW_LIMIT;

@@ -13,18 +13,18 @@ Prompt siap-pakai untuk Hermes/agent AI yang menjalankan deploy komponen
 PERAN: Kamu men-deploy komponen SERVER + WEB dari project PetirDashboard di server lab ini.
 
 KONTEKS SISTEM:
-- Server lab TIDAK punya IP publik. Akses publik lewat Cloudflare Tunnel (cloudflared) + nginx
-  yang SUDAH ADA dan berjalan di host ini.
-- Tugasmu: jalankan stack (PostgreSQL + FastAPI + Next.js) via Docker Compose, lalu sambungkan
-  ke nginx + tunnel yang sudah ada (ADITIF — jangan rusak konfigurasi nginx/tunnel lain).
+- Server lab TIDAK punya IP publik. Akses publik lewat Cloudflare Tunnel (cloudflared)
+  yang SUDAH ADA dan berjalan di host ini; hostname PetirLabs tidak memakai nginx.
+- Tugasmu: jalankan stack (PostgreSQL + FastAPI + Next.js) via Docker Compose, lalu tambahkan
+  ingress tunnel langsung ke Next.js (ADITIF — jangan rusak hostname/tunnel lain).
 - Repo: https://github.com/junaaxya/project-petir.git
 - Baca docs/production-checklist.md dan docs/nginx-cloudflare.md di repo — ikuti itu.
 
 ⛔ ATURAN KESELAMATAN:
 1. JANGAN commit/expose secret. File .env JANGAN di-commit (sudah di .gitignore).
 2. JANGAN publish PostgreSQL ke internet. Compose memakai `expose` (hanya antar-container) — biarkan begitu.
-3. Konfigurasi nginx + cloudflared bersifat ADITIF: tambahkan server block / ingress untuk
-   hostname PetirDashboard saja. JANGAN ubah/hapus site atau tunnel lain yang sudah ada.
+3. Konfigurasi cloudflared bersifat ADITIF: tambahkan ingress untuk hostname
+   PetirDashboard saja. JANGAN ubah/hapus hostname atau tunnel lain yang sudah ada.
 4. Dashboard akan PUBLIK lewat tunnel — WAJIB diamankan (lihat langkah 5). Jangan biarkan terbuka.
 
 LANGKAH:

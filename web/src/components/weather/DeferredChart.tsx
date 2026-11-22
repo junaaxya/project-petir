@@ -18,8 +18,8 @@ export function DeferredChart({ children, minHeight = 280 }: DeferredChartProps)
     if (!host || visible) return;
 
     if (!("IntersectionObserver" in window)) {
-      setVisible(true);
-      return;
+      const timer = setTimeout(() => setVisible(true), 0);
+      return () => clearTimeout(timer);
     }
 
     const observer = new IntersectionObserver(

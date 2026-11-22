@@ -1,7 +1,7 @@
 # Production Checklist
 
 Go-live steps for PetirDashboard. Server lab runs the stack via Docker Compose
-behind the existing **nginx + Cloudflare Tunnel**; the Raspberry Pi 5 runs the
+behind the existing **Cloudflare Tunnel**, which points directly to Next.js; the Raspberry Pi 5 runs the
 edge sync worker. Neither machine needs a public IP — see
 [deployment-topology.md](./deployment-topology.md).
 
@@ -32,7 +32,7 @@ docker compose logs server    # confirm "alembic upgrade head" ran to 0004
   the server container.
 - Server runs `alembic upgrade head` on start (migrations 0001→0004).
 - `NEXT_PUBLIC_API_BASE` is empty → the dashboard calls the API with relative
-  `/api` paths (same origin via nginx). It is baked at **build** time via a
+  `/api` paths (same origin via Next.js). It is baked at **build** time via a
   Docker build ARG; changing it requires a rebuild (`docker compose build web`).
 
 ## 2. Cloudflare Tunnel (host)

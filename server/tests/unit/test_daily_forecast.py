@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
+from unittest.mock import patch
 
 from app.services.daily_forecast import (
     calculate_daily_forecast,
@@ -12,24 +13,57 @@ from app.services.daily_forecast import (
 
 
 class _FakeMappings:
+    def __init__(self, rows):
+        self.rows = rows
+
     def all(self):
-        return []
+        return self.rows
 
 
 class _FakeResult:
+    def __init__(self, rows):
+        self.rows = rows
+
     def mappings(self):
-        return _FakeMappings()
+        return _FakeMappings(self.rows)
 
 
 class _FakeSession:
-    def __init__(self) -> None:
+    def __init__(self, rows=None) -> None:
         self.sql = ""
         self.params = {}
+        self.rows = rows or []
 
     def execute(self, statement, params):
         self.sql = str(statement)
         self.params = params
-        return _FakeResult()
+        return _FakeResult(self.rows)
+
+
+FIXED_NOW = datetime(2026, 8, 20, 6, 30, tzinfo=timezone.utc)
+
+
+class _FixedDateTime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return FIXED_NOW if tz is not None else FIXED_NOW.replace(tzinfo=None)
+
+
+def _forecast_rows(count: int, latest_age_minutes: int) -> list[dict[str, Any]]:
+    latest = FIXED_NOW - timedelta(minutes=latest_age_minutes)
+    return [
+        {
+            "bucket": latest - timedelta(minutes=count - index - 1),
+            "temperature_avg": 28.0,
+            "humidity_avg": 80.0,
+            "pressure_avg": 1008.0,
+            "illuminance_avg": 500.0,
+            "rain_max": 0.0,
+            "wind_speed_avg": 1.0,
+            "wind_speed_max": 2.0,
+        }
+        for index in range(count)
+    ]
 
 
 class DailyForecastUnitTests(unittest.TestCase):
@@ -75,6 +109,34 @@ class DailyForecastUnitTests(unittest.TestCase):
         self.assertEqual(response.status, "insufficient_data")
         self.assertEqual(response.items, [])
         self.assertEqual(response.sample_count, 0)
+
+    def test_endpoint_requires_thirty_fresh_points(self) -> None:
+        from app.query.weather import clear_daily_forecast_cache, weather_daily_forecast
+
+        for count, expected_status in ((29, "insufficient_data"), (30, "available")):
+            clear_daily_forecast_cache()
+            session = _FakeSession(_forecast_rows(count, latest_age_minutes=1))
+            with patch("app.query.weather.datetime", _FixedDateTime):
+                response = weather_daily_forecast(node=f"node-{count}", session=cast(Any, session))
+
+            self.assertEqual(response.status, expected_status)
+            self.assertEqual(response.sample_count, count)
+            if expected_status == "insufficient_data":
+                self.assertEqual(response.items, [])
+            else:
+                self.assertEqual(len(response.items), 3)
+
+    def test_endpoint_marks_old_telemetry_stale_without_items(self) -> None:
+        from app.query.weather import clear_daily_forecast_cache, weather_daily_forecast
+
+        clear_daily_forecast_cache()
+        session = _FakeSession(_forecast_rows(30, latest_age_minutes=31))
+        with patch("app.query.weather.datetime", _FixedDateTime):
+            response = weather_daily_forecast(node="stale-node", session=cast(Any, session))
+
+        self.assertEqual(response.status, "stale_data")
+        self.assertEqual(response.sample_count, 30)
+        self.assertEqual(response.items, [])
 
 
 if __name__ == "__main__":

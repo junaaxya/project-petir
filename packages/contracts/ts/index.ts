@@ -326,3 +326,5 @@ export interface LightningEventsExportResponse {
   items: LightningEventItem[];
   meta: { count: number; scope: "all_filtered" };
 }
+
+export { QUERY_CONTRACT_EXAMPLES } from "./query.examples";
