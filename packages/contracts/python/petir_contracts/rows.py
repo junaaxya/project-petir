@@ -5,9 +5,10 @@ the edge to shape outbound rows. Field sets match the edge SQLite tables exactly
 """
 from __future__ import annotations
 
-from typing import Optional, Union
+from datetime import datetime
+from typing import Annotated, Optional, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from .enums import (
     LightningEventType,
@@ -18,15 +19,25 @@ from .enums import (
 )
 
 JsonValue = Union[dict, str, None]
+PositiveInt = Annotated[int, Field(strict=True, ge=1)]
+
+
+def _datetime_input(value):
+    if value is not None and not isinstance(value, (str, datetime)):
+        raise ValueError("datetime must be an RFC 3339 string")
+    return value
+
+
+JsonDateTime = Annotated[datetime, BeforeValidator(_datetime_input)]
 
 
 class _Row(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 class WeatherSampleRow(_Row):
-    edge_id: int
-    ts_pi_utc: str
+    edge_id: PositiveInt
+    ts_pi_utc: JsonDateTime
     source: Optional[str] = None
     device: Optional[str] = None
     sensor: Optional[str] = None
@@ -40,12 +51,12 @@ class WeatherSampleRow(_Row):
     wind_dir_deg: Optional[float] = None
     raw_json: JsonValue = None
     ingest_run_id: Optional[int] = None
-    created_at_utc: str
+    created_at_utc: JsonDateTime
 
 
 class WeatherMinuteSummaryRow(_Row):
-    change_seq: int
-    minute_utc: str
+    change_seq: PositiveInt
+    minute_utc: JsonDateTime
     source: str
     device: str
     sample_count: Optional[int] = None
@@ -71,13 +82,13 @@ class WeatherMinuteSummaryRow(_Row):
     wind_speed_avg: Optional[float] = None
     wind_speed_max: Optional[float] = None
     latest_wind_dir_deg: Optional[float] = None
-    last_sample_ts_utc: Optional[str] = None
-    updated_at_utc: str
+    last_sample_ts_utc: Optional[JsonDateTime] = None
+    updated_at_utc: JsonDateTime
 
 
 class LightningEventRow(_Row):
-    edge_id: int
-    ts_pi_utc: str
+    edge_id: PositiveInt
+    ts_pi_utc: JsonDateTime
     source: Optional[str] = None
     device: Optional[str] = None
     sensor: Optional[str] = None
@@ -88,12 +99,12 @@ class LightningEventRow(_Row):
     irq_source: Optional[int] = None
     raw_line: Optional[str] = None
     ingest_run_id: Optional[int] = None
-    created_at_utc: str
+    created_at_utc: JsonDateTime
 
 
 class LightningMinuteSummaryRow(_Row):
-    change_seq: int
-    minute_utc: str
+    change_seq: PositiveInt
+    minute_utc: JsonDateTime
     source: str
     device: str
     lightning_count: Optional[int] = None
@@ -101,35 +112,35 @@ class LightningMinuteSummaryRow(_Row):
     noise_window_count: Optional[int] = None
     noise_event_count: Optional[int] = None
     status: Optional[LightningStatus] = None
-    last_event_ts_utc: Optional[str] = None
+    last_event_ts_utc: Optional[JsonDateTime] = None
     last_distance_km: Optional[float] = None
     max_energy_raw: Optional[int] = None
-    updated_at_utc: str
+    updated_at_utc: JsonDateTime
 
 
 class WeatherQualityEventRow(_Row):
-    edge_id: int
-    ts_pi_utc: Optional[str] = None
-    minute_utc: Optional[str] = None
-    sample_ts_utc: Optional[str] = None
+    edge_id: PositiveInt
+    ts_pi_utc: Optional[JsonDateTime] = None
+    minute_utc: Optional[JsonDateTime] = None
+    sample_ts_utc: Optional[JsonDateTime] = None
     source: Optional[str] = None
     device: Optional[str] = None
     quality_status: Optional[QualityStatus] = None
     reason_codes: Union[str, list, None] = None
     message: Optional[str] = None
     details_json: JsonValue = None
-    created_at_utc: str
+    created_at_utc: JsonDateTime
 
 
 class SystemEventRow(_Row):
-    edge_id: int
-    ts_pi_utc: str
+    edge_id: PositiveInt
+    ts_pi_utc: JsonDateTime
     source: Optional[str] = None
     level: Optional[SystemLevel] = None
     event_type: Optional[str] = None
     message: Optional[str] = None
     details_json: JsonValue = None
-    created_at_utc: str
+    created_at_utc: JsonDateTime
 
 
 ROW_MODELS = {

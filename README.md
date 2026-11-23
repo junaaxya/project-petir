@@ -70,7 +70,7 @@ app ports (`8000`, `3000`) on the host for nginx to proxy.
 packages/contracts/   Shared wire contract (JSON Schema + Pydantic + TS)
 edge/                 Raspberry Pi: sync worker + migrations + systemd
 server/               FastAPI: ingest (write) + query (read) + Alembic
-web/                  Next.js 14 dashboard
+web/                  Next.js 16 dashboard
 scripts/              Edge bootstrap + systemd install helpers
 docs/                 Architecture, sync, API contract, data model, build plan
 ```

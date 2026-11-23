@@ -74,7 +74,8 @@ Receives batches, validates against the shared contract, upserts to PostgreSQL, 
 Two clearly separated paths:
 
 - **Write path** (`app/ingest/`) — `POST /api/ingest/sync-batch`. Auth: per-node bearer token. Only registered, enabled nodes may write. Strict per-node rate limiting / backpressure (`429`).
-- **Read path** (`app/query/`) — dashboard GETs. Read-only. Optional dashboard-user auth in Phase 4; open-read on the internal lab network before that.
+- **Read path** (`app/query/`) — dashboard GETs. Read-only. Public deployments must
+  use either the built-in API-key guard for controlled clients or Cloudflare Access.
 
 Node credentials can never read; dashboard users can never write. The two paths share neither auth nor service code.
 
@@ -110,10 +111,10 @@ Consumes the read API only. Five pages: Overview, Weather History, Lightning, He
 | Backend | FastAPI | Strong Pydantic validation on ingest, async reads |
 | ORM / migrations | SQLAlchemy 2.0 + Alembic | Mature; heavy time-series queries drop to raw SQL |
 | Central DB | PostgreSQL 16 | Constraint; TimescaleDB optional later |
-| Frontend | Next.js 14 + TypeScript + TanStack Query | Clean read-API caching |
+| Frontend | Next.js 16 + TypeScript + TanStack Query | Standalone runtime and clean read-API caching |
 | Charts | Apache ECharts | Handles dense time-series, zoom, downsample |
 | UI | Tailwind + shadcn/ui | Fast, consistent cards / badges / tables |
-| Deploy | docker-compose + nginx + Cloudflare Tunnel | Single-host lab deploy; TLS at the Cloudflare edge, no public IP |
+| Deploy | Docker Compose + Cloudflare Tunnel | Tunnel targets loopback-bound Next.js; TLS at Cloudflare, no public IP |
 
 ## Roadmap
 

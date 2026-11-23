@@ -121,7 +121,7 @@ pytest
 python -m sync_worker.run   # one cycle; exit code is the signal
 ```
 
-### web (Next.js 14, TypeScript, TanStack Query, ECharts, Tailwind/shadcn)
+### web (Next.js 16, TypeScript, TanStack Query, ECharts, Tailwind/shadcn)
 
 - Import types from `packages/contracts/ts`. Do not redefine API shapes.
 - Components live under `src/components/<domain>/` (overview, weather, lightning, health, quality, common).

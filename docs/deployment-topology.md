@@ -136,7 +136,7 @@ dan rollout-nya **additive** (tidak menyentuh service ingest yang sudah jalan).
 Seluruh stack pusat via Docker Compose:
 
 ```
-server/            # FastAPI image (alembic upgrade head + uvicorn)
+server/            # FastAPI image (uvicorn only; Alembic is a one-shot deploy step)
 web/               # Next.js image (standalone)
 packages/contracts/# di-COPY ke dalam image saat build
 docker-compose.yml # postgres + server + web
@@ -171,7 +171,8 @@ digunakan untuk hostname PetirLabs. Ikuti [nginx-cloudflare.md](./nginx-cloudfla
 
 Detail lengkap di [edge-schema-drift.md](./edge-schema-drift.md). Ringkas:
 
-1. **Server lab dulu**: `cp .env.example .env` (isi secret kuat), `docker compose up -d`.
+1. **Server lab dulu**: siapkan `.env`, start PostgreSQL, jalankan migrasi one-shot
+   (`docker compose --profile migration run --rm --no-deps migrate`), lalu start server + web.
 2. **cloudflared**: arahkan `petirlabs.com` langsung ke `http://localhost:3000`;
    Next.js menangani `/` dan mem-proxy `/api/*` ke FastAPI.
 3. **Daftarkan node** di tabel `edge_nodes` → dapat `NODE_TOKEN`.

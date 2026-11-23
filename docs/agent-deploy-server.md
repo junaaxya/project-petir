@@ -32,12 +32,14 @@ LANGKAH:
 2. `git clone https://github.com/junaaxya/project-petir.git ~/project-petir && cd ~/project-petir`
 3. `cp .env.example .env` lalu isi dengan secret KUAT:
    - POSTGRES_PASSWORD=$(openssl rand -base64 24)
-   - NEXT_PUBLIC_API_BASE=   (KOSONGKAN — dashboard pakai path relatif /api lewat nginx, same-origin)
+   - NEXT_PUBLIC_API_BASE=   (KOSONGKAN — dashboard pakai path relatif /api lewat Next.js, same-origin)
    - CORS_ALLOW_ORIGINS=     (kosong — same-origin, CORS tidak diperlukan)
    - Pilih mode auth dashboard di langkah 5.
-4. `docker compose up -d --build`
-   - Verifikasi: `docker compose ps` semua healthy; `docker compose logs server` menunjukkan
-     "alembic upgrade head" sampai revision 0004 dan uvicorn listen di 8000.
+4. Jalankan migration sebagai langkah terpisah, lalu start aplikasi:
+   - `docker compose up -d postgres`
+   - `docker compose --profile migration run --rm --no-deps migrate` (harus selesai ke revision 0007)
+   - `docker compose up -d --build server web`
+   - Verifikasi: `docker compose ps` healthy dan log server menunjukkan uvicorn listen di 8000.
    - Catatan: NEXT_PUBLIC_API_BASE adalah BUILD-time (build ARG di web/Dockerfile). Jika diubah,
      wajib rebuild: `docker compose build web`.
 5. AMANKAN DASHBOARD (pilih satu):
