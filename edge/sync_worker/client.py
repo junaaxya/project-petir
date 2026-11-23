@@ -102,12 +102,12 @@ class SyncClient:
             value = row.get(row_cursor_field)
             if isinstance(value, int) and not isinstance(value, bool):
                 row_cursor_values.append(value)
-        if (
-            accepted_cursor is not None
-            and row_cursor_values
-            and accepted_cursor > max(row_cursor_values)
-        ):
-            raise FatalBatchError(200, "invalid ACK: cursor exceeds batch")
+        if not row_cursor_values:
+            raise FatalBatchError(200, "invalid ACK: batch cursor unavailable")
+        if accepted_cursor is None:
+            raise FatalBatchError(200, "invalid ACK: accepted cursor missing")
+        if accepted_cursor != max(row_cursor_values):
+            raise FatalBatchError(200, "invalid ACK: cursor does not match batch")
         row_count = len(envelope.get("rows", []))
         if response.accepted > row_count:
             raise FatalBatchError(200, "invalid ACK: accepted count exceeds batch")

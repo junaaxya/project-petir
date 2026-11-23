@@ -76,6 +76,7 @@ def test_post_batch_accepts_matching_ack():
         (("accepted_cursor", "strategy"), "summary"),
         (("accepted_cursor", "last_edge_id"), 9),
         (("accepted_cursor", "last_edge_id"), 12),
+        (("accepted_cursor", "last_edge_id"), None),
         (("accepted",), 2),
         (("accepted",), 0),
     ],
@@ -104,5 +105,28 @@ def test_post_batch_rejects_out_of_range_rejection_index():
     try:
         with pytest.raises(FatalBatchError, match="outside batch"):
             client.post_batch(_envelope())
+    finally:
+        client.close()
+
+
+def test_post_batch_rejects_summary_cursor_outside_batch():
+    envelope = _envelope()
+    envelope["table"] = "weather_minute_summary"
+    envelope["cursor"] = {"strategy": "summary", "last_change_seq": 20}
+    envelope["rows"] = [
+        {"change_seq": 21, "minute_utc": "2026-01-01T00:00:00Z"}
+    ]
+
+    payload = _ack()
+    payload["table"] = "weather_minute_summary"
+    payload["accepted_cursor"] = {
+        "strategy": "summary",
+        "last_change_seq": 22,
+    }
+
+    client = _client_for(payload)
+    try:
+        with pytest.raises(FatalBatchError, match="cursor does not match batch"):
+            client.post_batch(envelope)
     finally:
         client.close()
