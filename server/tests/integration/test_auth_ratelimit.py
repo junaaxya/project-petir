@@ -36,13 +36,64 @@ def test_dashboard_auth_enabled_accepts_correct_key(client, monkeypatch):
     assert r.status_code == 200
 
 
-def test_ingest_runs_uses_dashboard_auth(client, monkeypatch):
-    monkeypatch.setattr("app.settings.settings.dashboard_auth_enabled", True)
-    monkeypatch.setattr("app.settings.settings.dashboard_api_key", "secret-key-123")
+def test_ingest_runs_requires_operator_auth(client, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.operator_api_key", "operator-key-123")
     assert client.get("/api/ingest/runs").status_code == 401
     assert client.get(
-        "/api/ingest/runs", headers={"X-API-Key": "secret-key-123"}
+        "/api/ingest/runs", headers={"X-API-Key": "operator-key-123"}
     ).status_code == 200
+
+
+def test_sensitive_routes_fail_closed_by_default(client):
+    for path in (
+        "/api/ingest/runs",
+        "/api/system/events",
+        "/api/admin/retention/policies",
+    ):
+        response = client.get(path)
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "ACCESS_CONTROL_NOT_CONFIGURED"
+
+
+def test_operator_cannot_access_admin_routes(client, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.operator_api_key", "operator-key-123")
+    response = client.get(
+        "/api/admin/retention/policies",
+        headers={"X-API-Key": "operator-key-123"},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_dashboard_key_cannot_access_privileged_routes_in_api_key_mode(client, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.admin_api_key", "separate-admin-key")
+    monkeypatch.setattr("app.settings.settings.operator_api_key", "separate-operator-key")
+    monkeypatch.setattr("app.settings.settings.dashboard_auth_enabled", True)
+    monkeypatch.setattr("app.settings.settings.dashboard_api_key", "dashboard-read-key")
+    headers = {"X-API-Key": "dashboard-read-key"}
+    assert client.get("/api/system/events", headers=headers).status_code == 401
+    assert client.get(
+        "/api/admin/retention/policies", headers=headers
+    ).status_code == 401
+
+
+def test_siren_routes_are_disabled_before_node_or_admin_auth(client):
+    assert client.get("/api/siren/audit-test/options").status_code == 404
+    assert client.get("/api/siren/commands/pending").status_code == 404
+    assert client.post(
+        "/api/siren/audit-test",
+        json={
+            "nodeId": "any-node",
+            "durationSec": 1,
+            "repeats": 1,
+            "gapSec": 0,
+            "reason": "must remain disabled",
+        },
+    ).status_code == 404
+    assert client.post("/api/siren/audit-test/status", json={}).status_code == 404
 
 
 def test_rate_limit_blocks_after_threshold(client, session, monkeypatch):

@@ -98,7 +98,10 @@ def test_no_event_for_fresh_to_stale_transition(session, seeded_node):
     assert _server_events(session) == []
 
 
-def test_admin_availability_run_returns_summary(client, session, seeded_node):
+def test_admin_availability_run_returns_summary(client, session, seeded_node, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.admin_api_key", "test-admin-key")
+    client.headers.update({"X-API-Key": "test-admin-key"})
     now = datetime.now(timezone.utc)
     seeded_node.last_seen_utc = now
     seeded_node.availability_status = "fresh"

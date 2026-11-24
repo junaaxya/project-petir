@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 from app.ingest.auth import verify_node_token
 from app.models.registry import EdgeNode
-from app.query.auth import verify_dashboard_user
+from app.query.auth import (
+    AccessPrincipal,
+    require_siren_enabled,
+    verify_admin_user,
+)
 from app.schemas.siren import (
     SirenAuditCreateResponse,
     SirenAuditHistoryResponse,
@@ -29,19 +33,25 @@ from app.services.siren_audit import (
 )
 
 router = APIRouter(prefix="/api/siren", tags=["siren"])
+SirenEnabled = Annotated[None, Depends(require_siren_enabled)]
+AdminPrincipal = Annotated[AccessPrincipal, Depends(verify_admin_user)]
 
 
 @router.get("/audit-test/options", response_model=SirenAuditOptionsResponse)
 def siren_audit_options(
-    _: str | None = Depends(verify_dashboard_user),
+    _enabled: SirenEnabled,
+    principal: AdminPrincipal,
     session: Session = Depends(get_session),
 ) -> SirenAuditOptionsResponse:
-    return SirenAuditOptionsResponse.model_validate(get_options(session))
+    return SirenAuditOptionsResponse.model_validate(
+        get_options(session, actor_id=principal.subject, actor_role=principal.role)
+    )
 
 
 @router.get("/audit-test/latest", response_model=SirenAuditLatestResponse)
 def siren_audit_latest(
-    _: str | None = Depends(verify_dashboard_user),
+    _enabled: SirenEnabled,
+    _principal: AdminPrincipal,
     node: Optional[str] = Query(default=None),
     session: Session = Depends(get_session),
 ) -> SirenAuditLatestResponse:
@@ -50,7 +60,8 @@ def siren_audit_latest(
 
 @router.get("/audit-test/history", response_model=SirenAuditHistoryResponse)
 def siren_audit_history(
-    _: str | None = Depends(verify_dashboard_user),
+    _enabled: SirenEnabled,
+    _principal: AdminPrincipal,
     from_: Optional[str] = Query(default=None, alias="from"),
     to: Optional[str] = Query(default=None),
     node: Optional[str] = Query(default=None),
@@ -75,14 +86,27 @@ def siren_audit_history(
 @router.post("/audit-test", response_model=SirenAuditCreateResponse)
 def create_siren_audit_test(
     body: SirenAuditRequestCreate,
-    _: str | None = Depends(verify_dashboard_user),
+    _enabled: SirenEnabled,
+    principal: AdminPrincipal,
     session: Session = Depends(get_session),
 ) -> SirenAuditCreateResponse:
-    return SirenAuditCreateResponse.model_validate(create_audit_request(session, body))
+    return SirenAuditCreateResponse.model_validate(
+        create_audit_request(
+            session,
+            body,
+            actor_id=principal.subject,
+            actor_role=principal.role,
+        )
+    )
 
 
-@router.get("/commands/pending", response_model=SirenAuditPendingCommandsResponse, include_in_schema=False)
+@router.get(
+    "/commands/pending",
+    response_model=SirenAuditPendingCommandsResponse,
+    include_in_schema=False,
+)
 def get_pending_siren_commands(
+    _enabled: SirenEnabled,
     node: Annotated[EdgeNode, Depends(verify_node_token)],
     session: Session = Depends(get_session),
     limit: int = Query(default=1, ge=1, le=5),
@@ -92,10 +116,17 @@ def get_pending_siren_commands(
     )
 
 
-@router.post("/audit-test/status", response_model=SirenAuditStatusUpdateResponse, include_in_schema=False)
+@router.post(
+    "/audit-test/status",
+    response_model=SirenAuditStatusUpdateResponse,
+    include_in_schema=False,
+)
 def update_siren_audit_status(
     body: SirenAuditStatusCallback,
+    _enabled: SirenEnabled,
     node: Annotated[EdgeNode, Depends(verify_node_token)],
     session: Session = Depends(get_session),
 ) -> SirenAuditStatusUpdateResponse:
-    return SirenAuditStatusUpdateResponse.model_validate(apply_status_callback(session, node=node, payload=body))
+    return SirenAuditStatusUpdateResponse.model_validate(
+        apply_status_callback(session, node=node, payload=body)
+    )

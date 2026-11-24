@@ -12,48 +12,43 @@ This document is a plan only. Applying Cloudflare, DNS, Access policies, or prod
 - Siren, relay, and GPIO activation remain disabled. Petir 2 must retain an empty operator allowlist and no registered production node until a separately reviewed hardware rollout.
 - API keys, node tokens, and Access service tokens must never be embedded in browser JavaScript or `NEXT_PUBLIC_*` variables.
 
-## Current backend boundaries
+## Phase 2.6 backend boundaries
 
 | Surface | Current backend guard | Public classification |
 |---|---|---|
-| Weather, lightning, health, forecast reads | `verify_dashboard_user` | Candidate public monitoring data |
-| System events and summary | `verify_dashboard_user` | Operator-only; events may reveal internal details |
-| `GET /api/ingest/runs` | `verify_dashboard_user` | Operator-only; includes error details and node activity |
+| Weather, lightning, health, forecast reads | Petir 1-compatible `verify_dashboard_user` | Candidate public monitoring data |
+| System events and summary | `verify_operator_user` | Operator-only; events may reveal internal details |
+| `GET /api/ingest/runs` | `verify_operator_user` | Operator-only; includes error details and node activity |
 | `POST /api/ingest/sync-batch` | `verify_node_token` | Machine endpoint; bypass browser Access and retain node token |
-| Siren options/latest/history/create | `verify_dashboard_user` | Admin-only; create is a physical-action request path |
-| Siren pending/status callbacks | `verify_node_token`, omitted from OpenAPI | Machine endpoint; no browser authentication |
-| `/api/admin/retention/run` | `verify_dashboard_user` | Critical admin-only; can delete retained data |
-| `/api/admin/availability/run` and `/api/admin/ai/run` | `verify_dashboard_user` | Admin/operator-only mutation |
-| `/api/admin/*` reads | `verify_dashboard_user` | Operator-only |
-| Backend `/openapi.json`, `/docs`, `/redoc` | FastAPI defaults; unguarded on the internal-only backend | Not currently proxied by web (`/api/openapi.json` returns 404); disable or protect before any direct API publication |
+| Siren options/latest/history/create | feature flag plus `verify_admin_user` | Admin-only; disabled in Petir 2 Compose |
+| Siren pending/status callbacks | feature flag plus `verify_node_token`, omitted from OpenAPI | Machine endpoint; disabled in Petir 2 Compose |
+| `/api/admin/*` | `verify_admin_user` | Admin-only, including retention and job mutations |
+| Backend `/openapi.json`, `/docs`, `/redoc` | controlled by `API_DOCS_ENABLED` | Disabled in Petir 2 Compose; `/healthz` is the internal healthcheck |
 
 There is no separate node-management HTTP route in the current application. Node registration is database/bootstrap work and must remain an explicit operator procedure.
 
-## Current fail-open risk
+## Resolved source-level risks
 
-`DASHBOARD_AUTH_ENABLED=false` is the application default. In that mode,
-`verify_dashboard_user()` deliberately returns success without an identity. This
-means the guard named in the table above does **not** protect `/api/admin/*`,
-diagnostic reads, or the browser-facing siren audit routes if they become
-reachable through a public reverse proxy.
+`DASHBOARD_AUTH_ENABLED=false` still preserves Petir 1-compatible public telemetry,
+but it no longer controls privileged routes. `ADMIN_AUTH_MODE=disabled` fails closed
+with `503` for operator/admin APIs. The supported privileged modes are server-only
+API keys and backend-verified Cloudflare Access JWTs.
 
-The dedicated Petir 2 template reduces the immediate siren risk by keeping
-`PETIR2_SIREN_AUDIT_OPERATORS_JSON=[]`, so a client-selected `requestedBy` value
-cannot currently match an allowed operator. That is not authorization and does
-not protect `/api/admin/*`; retention execution can delete eligible records.
-The `/admin/siren` page is also directly routable and has no Next.js page or
-middleware authorization gate.
+The backend no longer trusts client-supplied `requestedBy`; persisted siren audit
+identity and role are derived from the verified principal. `SIREN_AUDIT_ENABLED=false`
+returns `404` from browser creation/history and machine poll/callback routes before
+any command can be read or created.
 
-The repository's generic development Compose file has a separate unsafe
-combination: dashboard auth defaults off while example siren operators are
-populated. It must not be used as a public-production configuration. The
-dedicated `deploy/petir2-nelayan` template remains the only reviewed deployment
-path for this station.
+The generic Compose file retains an explicit `legacy_dashboard` access mode solely
+to preserve Petir 1 behavior during future upgrades. That mode may inherit anonymous
+privileged access when legacy dashboard auth is disabled and therefore must never be
+used for Petir 2 or a new public deployment. Generic Compose still defaults siren
+routes off and the operator list empty. The dedicated `deploy/petir2-nelayan`
+template remains the only reviewed deployment path for this station.
 
 No edge polling/relay execution implementation was found, so there is no current
-physical actuation path. Preserve that state. Before Phase 3, add a backend
-siren feature flag that fails closed (for example `404` or `503`) for all siren
-routes unless a separately reviewed hardware rollout explicitly enables it.
+physical actuation path. Preserve that state and keep the backend siren feature
+flag disabled throughout Phase 3.
 
 ## Approach A — public monitoring, protected admin/API
 
@@ -83,10 +78,8 @@ Advantages:
 - ingest can operate independently of browser sessions;
 - public product visibility is preserved.
 
-Risks and required source work:
+Remaining policy work for Approach A:
 
-- the current `verify_dashboard_user` switch is all-or-nothing, so public and operator read APIs need explicit backend policy groups;
-- admin identity needs a backend-verifiable mechanism (for example validated Cloudflare Access JWT headers), not a frontend-only check;
 - event payloads need a disclosure review before any public exposure;
 - rate limits and cache policy should be set separately for public reads and machine writes.
 
@@ -108,17 +101,32 @@ Risks:
 
 ## Recommendation
 
-Use **Approach B for the first Phase 3 pilot**, because Petir 2 is an internal/customer pilot and the current backend does not yet have separate public-reader and operator roles.
+Use **Approach B for the first Phase 3 pilot**, because Petir 2 is an
+internal/customer pilot. Phase 2.6 now separates public-reader, operator, and admin
+backend surfaces, but the first public route should still minimize anonymous exposure.
 
-Before public routing:
+Completed in source:
+
+1. Backend operator/admin authorization with API-key and verified Cloudflare Access
+   JWT modes.
+2. Negative tests for missing, invalid, wrong-role, and expired credentials.
+3. A fail-closed siren feature flag covering browser and node-token routes.
+4. Production controls for OpenAPI, Swagger, and ReDoc, plus a separate `/healthz`.
+5. Server-derived siren audit identity; client `requestedBy` is ignored.
+
+Remaining operational blockers before public routing:
 
 1. Put the browser dashboard behind Cloudflare Access.
 2. Add exact machine-path policies for node-token endpoints; do not broadly bypass `/api/*`.
-3. Add backend admin authorization for `/api/admin/*` and `/api/siren/audit-test*`; validate the trusted Access identity/JWT server-side or use another reviewed admin identity mechanism.
-4. Do not route publicly while `DASHBOARD_AUTH_ENABLED=false`; add negative tests proving unauthenticated admin and siren requests are rejected by the backend.
-5. Add a server-side siren feature flag that remains disabled independently of UI visibility, operator allowlists, and Cloudflare policy.
-6. Disable or protect OpenAPI, Swagger, and ReDoc in the production environment.
-7. Keep `PETIR2_SIREN_AUDIT_OPERATORS_JSON=[]`, no production node registration, and no siren/relay worker activation.
-8. Test allowed node-token requests and rejected unauthenticated/admin requests through the final public hostname before connecting a Raspberry Pi.
+3. Configure `PETIR2_ADMIN_AUTH_MODE=cloudflare_access`, the exact Access audience,
+   team domain, and reviewed admin/operator email allowlists in the mode-0600 runtime
+   environment. Keep the mode `disabled` until those values are approved.
+4. Verify the Access JWT reaches the backend through the final Next.js proxy path;
+   reject a forged header and a valid but non-allowlisted identity.
+5. Keep `PETIR2_SIREN_AUDIT_OPERATORS_JSON=[]`, no production node registration,
+   and no siren/relay worker activation.
+6. Test allowed node-token requests and rejected unauthenticated/admin requests through
+   the final public hostname before connecting a Raspberry Pi.
 
-Approach A can follow later after an explicit public-data contract and backend role split are implemented and reviewed.
+Approach A can follow later after an explicit public-data contract, event-disclosure
+review, and separate public-read rate/cache policy are implemented and approved.

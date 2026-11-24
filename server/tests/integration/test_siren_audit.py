@@ -2,7 +2,20 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from tests.conftest import NODE_ID, NODE_TOKEN
+
+SECOND_NODE_ID = "rpi-test-02"
+SECOND_NODE_TOKEN = "second-test-token-secret"
+
+
+@pytest.fixture(autouse=True)
+def _enable_test_only_siren_access(client, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.siren_audit_enabled", True)
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.admin_api_key", "test-admin-key")
+    client.headers.update({"X-API-Key": "test-admin-key"})
 
 
 def _configure_ready_node(session) -> None:
@@ -28,12 +41,12 @@ def test_siren_audit_options_returns_nodes_and_operators(client, session, monkey
     r = client.get("/api/siren/audit-test/options")
     assert r.status_code == 200
     body = r.json()
-    assert body["operators"][0]["id"] == "ops-1"
+    assert body["operators"][0]["id"] == "api-key-admin"
     assert any(item["nodeId"] == NODE_ID for item in body["nodes"])
     assert body["limits"]["cooldownSeconds"] == 60
 
 
-def test_siren_audit_create_rejects_unlisted_operator(client, session, monkeypatch):
+def test_siren_audit_create_ignores_client_requested_by(client, session, monkeypatch):
     _configure_ready_node(session)
     _configure_operators(monkeypatch)
 
@@ -48,8 +61,9 @@ def test_siren_audit_create_rejects_unlisted_operator(client, session, monkeypat
             "reason": "uji relay",
         },
     )
-    assert r.status_code == 403
-    assert r.json()["error"]["code"] == "SIREN_AUDIT_FORBIDDEN"
+    assert r.status_code == 200
+    assert r.json()["requestedBy"] == "api-key-admin"
+    assert r.json()["requestedRole"] == "admin"
 
 
 def test_siren_audit_create_validates_duration(client, session, monkeypatch):
@@ -87,7 +101,7 @@ def test_siren_audit_create_and_cooldown(client, session, monkeypatch):
     body1 = r1.json()
     assert body1["status"] == "queued"
     assert body1["command"]["type"] == "siren_audit_test"
-    assert body1["requestedRole"] == "operator"
+    assert body1["requestedRole"] == "admin"
 
     r2 = client.post("/api/siren/audit-test", json=payload)
     assert r2.status_code == 409
@@ -114,6 +128,8 @@ def test_siren_audit_pending_command_and_success_callback(client, session, monke
     assert create.status_code == 200
     request_id = create.json()["requestId"]
 
+    # Machine routes must remain independent from browser/admin authentication.
+    admin_key = client.headers.pop("X-API-Key")
     pending = client.get(
         "/api/siren/commands/pending",
         headers={"Authorization": f"Bearer {NODE_TOKEN}"},
@@ -141,6 +157,7 @@ def test_siren_audit_pending_command_and_success_callback(client, session, monke
     assert callback_body["status"] == "success"
     assert callback_body["message"] == "sirine berbunyi normal"
 
+    client.headers["X-API-Key"] = admin_key
     latest = client.get(f"/api/siren/audit-test/latest?node={NODE_ID}")
     assert latest.status_code == 200
     latest_body = latest.json()
@@ -148,17 +165,77 @@ def test_siren_audit_pending_command_and_success_callback(client, session, monke
     assert latest_body["statusUpdates"][0]["status"] == "success"
 
 
-def test_siren_audit_dashboard_auth_applies_when_enabled(client, session, monkeypatch):
+def test_siren_machine_routes_reject_cross_node_access(client, session, monkeypatch):
+    from app.ingest.auth import hash_token
+    from app.models.registry import EdgeNode
+
     _configure_ready_node(session)
     _configure_operators(monkeypatch)
-    monkeypatch.setattr("app.settings.settings.dashboard_auth_enabled", True)
-    monkeypatch.setattr("app.settings.settings.dashboard_api_key", "secret-key-123")
+    session.add(
+        EdgeNode(
+            node_id=SECOND_NODE_ID,
+            name="second test node",
+            api_token_hash=hash_token(SECOND_NODE_TOKEN),
+            enabled=True,
+        )
+    )
+    session.commit()
 
+    create = client.post(
+        "/api/siren/audit-test",
+        json={
+            "nodeId": NODE_ID,
+            "durationSec": 1,
+            "repeats": 1,
+            "gapSec": 0,
+            "reason": "cross-node isolation regression",
+        },
+    )
+    assert create.status_code == 200
+    request_id = create.json()["requestId"]
+    client.headers.pop("X-API-Key")
+
+    second_poll = client.get(
+        "/api/siren/commands/pending",
+        headers={"Authorization": f"Bearer {SECOND_NODE_TOKEN}"},
+    )
+    assert second_poll.status_code == 200
+    assert second_poll.json()["items"] == []
+
+    second_node_callback = client.post(
+        "/api/siren/audit-test/status",
+        json={
+            "requestId": request_id,
+            "nodeId": NODE_ID,
+            "status": "acknowledged",
+        },
+        headers={"Authorization": f"Bearer {SECOND_NODE_TOKEN}"},
+    )
+    assert second_node_callback.status_code == 409
+    assert second_node_callback.json()["error"]["code"] == "SIREN_NODE_MISMATCH"
+
+    mismatched_body_callback = client.post(
+        "/api/siren/audit-test/status",
+        json={
+            "requestId": request_id,
+            "nodeId": SECOND_NODE_ID,
+            "status": "acknowledged",
+        },
+        headers={"Authorization": f"Bearer {NODE_TOKEN}"},
+    )
+    assert mismatched_body_callback.status_code == 409
+    assert mismatched_body_callback.json()["error"]["code"] == "SIREN_NODE_MISMATCH"
+
+
+def test_siren_audit_requires_admin_auth_even_when_dashboard_auth_is_public(client, session, monkeypatch):
+    _configure_ready_node(session)
+    _configure_operators(monkeypatch)
+    client.headers.pop("X-API-Key", None)
     r = client.get("/api/siren/audit-test/options")
     assert r.status_code == 401
     assert r.json()["error"]["code"] == "UNAUTHORIZED"
 
-    ok = client.get("/api/siren/audit-test/options", headers={"X-API-Key": "secret-key-123"})
+    ok = client.get("/api/siren/audit-test/options", headers={"X-API-Key": "test-admin-key"})
     assert ok.status_code == 200
 
 

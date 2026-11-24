@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from petir_contracts import CONTRACT_VERSION
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,6 +14,17 @@ class Settings(BaseSettings):
 
     dashboard_api_key: str = ""
     dashboard_auth_enabled: bool = False
+    admin_auth_mode: Literal[
+        "disabled", "api_key", "cloudflare_access", "legacy_dashboard"
+    ] = "disabled"
+    admin_api_key: str = ""
+    operator_api_key: str = ""
+    cloudflare_access_team_domain: str = ""
+    cloudflare_access_audience: str = ""
+    cloudflare_access_admin_emails: str = ""
+    cloudflare_access_operator_emails: str = ""
+    api_docs_enabled: bool = True
+    siren_audit_enabled: bool = False
     siren_audit_cooldown_seconds: int = 60
     siren_audit_operators_json: str = ""
 

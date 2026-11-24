@@ -19,13 +19,15 @@ OperatorRole = Literal["admin", "operator"]
 
 class SirenAuditRequestCreate(BaseModel):
     node_id: str = Field(alias="nodeId", min_length=1)
-    requested_by: str = Field(alias="requestedBy", min_length=1)
+    # Deprecated compatibility field. The backend ignores this client value
+    # and derives audit identity from the authenticated principal.
+    requested_by: Optional[str] = Field(default=None, alias="requestedBy", min_length=1)
     duration_sec: float = Field(alias="durationSec", ge=0.5, le=10)
     repeats: int = Field(ge=1, le=3)
     gap_sec: float = Field(alias="gapSec", ge=0, le=10)
     reason: str = Field(min_length=1)
 
-    @field_validator("node_id", "requested_by", "reason")
+    @field_validator("node_id", "reason")
     @classmethod
     def _strip_required_text(cls, value: str) -> str:
         stripped = value.strip()

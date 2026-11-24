@@ -9,10 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models.ops import SystemEvent
-from app.query.auth import verify_dashboard_user
+from app.query.auth import verify_operator_user
 from app.query.downsample import parse_range
 
-router = APIRouter(prefix="/api/system", tags=["system"], dependencies=[Depends(verify_dashboard_user)])
+router = APIRouter(prefix="/api/system", tags=["system"], dependencies=[Depends(verify_operator_user)])
 
 ROUTINE_EVENT_TYPES = {"ingest_heartbeat"}
 IMPORTANT_INFO_EVENT_TYPES = {"node_online", "node_offline"}

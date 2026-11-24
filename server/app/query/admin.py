@@ -11,10 +11,10 @@ from app.availability_logger import run_availability_check
 from app.ai_hooks import run_hooks
 from app.db import get_session
 from app.models.ai import AiHookResult, RetentionPolicy
-from app.query.auth import verify_dashboard_user
+from app.query.auth import verify_admin_user
 from app.retention import run_retention
 
-router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(verify_dashboard_user)])
+router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(verify_admin_user)])
 
 
 @router.get("/retention/policies")
