@@ -29,6 +29,32 @@ This document is a plan only. Applying Cloudflare, DNS, Access policies, or prod
 
 There is no separate node-management HTTP route in the current application. Node registration is database/bootstrap work and must remain an explicit operator procedure.
 
+## Current fail-open risk
+
+`DASHBOARD_AUTH_ENABLED=false` is the application default. In that mode,
+`verify_dashboard_user()` deliberately returns success without an identity. This
+means the guard named in the table above does **not** protect `/api/admin/*`,
+diagnostic reads, or the browser-facing siren audit routes if they become
+reachable through a public reverse proxy.
+
+The dedicated Petir 2 template reduces the immediate siren risk by keeping
+`PETIR2_SIREN_AUDIT_OPERATORS_JSON=[]`, so a client-selected `requestedBy` value
+cannot currently match an allowed operator. That is not authorization and does
+not protect `/api/admin/*`; retention execution can delete eligible records.
+The `/admin/siren` page is also directly routable and has no Next.js page or
+middleware authorization gate.
+
+The repository's generic development Compose file has a separate unsafe
+combination: dashboard auth defaults off while example siren operators are
+populated. It must not be used as a public-production configuration. The
+dedicated `deploy/petir2-nelayan` template remains the only reviewed deployment
+path for this station.
+
+No edge polling/relay execution implementation was found, so there is no current
+physical actuation path. Preserve that state. Before Phase 3, add a backend
+siren feature flag that fails closed (for example `404` or `503`) for all siren
+routes unless a separately reviewed hardware rollout explicitly enables it.
+
 ## Approach A — public monitoring, protected admin/API
 
 Public:
@@ -89,8 +115,10 @@ Before public routing:
 1. Put the browser dashboard behind Cloudflare Access.
 2. Add exact machine-path policies for node-token endpoints; do not broadly bypass `/api/*`.
 3. Add backend admin authorization for `/api/admin/*` and `/api/siren/audit-test*`; validate the trusted Access identity/JWT server-side or use another reviewed admin identity mechanism.
-4. Disable or protect OpenAPI, Swagger, and ReDoc in the production environment.
-5. Keep `PETIR2_SIREN_AUDIT_OPERATORS_JSON=[]`, no production node registration, and no siren/relay worker activation.
-6. Test allowed node-token requests and rejected unauthenticated/admin requests through the final public hostname before connecting a Raspberry Pi.
+4. Do not route publicly while `DASHBOARD_AUTH_ENABLED=false`; add negative tests proving unauthenticated admin and siren requests are rejected by the backend.
+5. Add a server-side siren feature flag that remains disabled independently of UI visibility, operator allowlists, and Cloudflare policy.
+6. Disable or protect OpenAPI, Swagger, and ReDoc in the production environment.
+7. Keep `PETIR2_SIREN_AUDIT_OPERATORS_JSON=[]`, no production node registration, and no siren/relay worker activation.
+8. Test allowed node-token requests and rejected unauthenticated/admin requests through the final public hostname before connecting a Raspberry Pi.
 
 Approach A can follow later after an explicit public-data contract and backend role split are implemented and reviewed.
