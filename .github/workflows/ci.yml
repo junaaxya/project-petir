@@ -41,10 +41,14 @@ jobs:
       - run: uv pip install -e 'packages/contracts[test]' -e 'server[test]' -e 'edge[test]'
       - name: Contract, edge, and server unit tests
         run: .venv/bin/pytest -q packages/contracts/tests edge/tests server/tests/unit
-      - name: PostgreSQL integration and E2E tests (no skips)
+      - name: PostgreSQL integration tests (no skips)
         run: |
-          .venv/bin/pytest -q server/tests/integration tests/e2e --junitxml=postgres-tests.xml
-          .venv/bin/python -c 'import sys, xml.etree.ElementTree as ET; root = ET.parse("postgres-tests.xml").getroot(); skipped = sum(int(s.get("skipped", 0)) for s in root.iter("testsuite")); print(f"PostgreSQL skipped tests: {skipped}"); sys.exit(1 if skipped else 0)'
+          .venv/bin/pytest -q server/tests/integration --junitxml=server-integration.xml
+          .venv/bin/python scripts/check_junit_no_skips.py server-integration.xml
+      - name: PostgreSQL E2E tests (no skips)
+        run: |
+          .venv/bin/pytest -q tests/e2e --junitxml=e2e-tests.xml
+          .venv/bin/python scripts/check_junit_no_skips.py e2e-tests.xml
 
   web:
     runs-on: ubuntu-latest
