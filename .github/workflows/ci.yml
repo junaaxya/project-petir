@@ -104,9 +104,13 @@ jobs:
           default_cid=""
           branded_cid=""
           trap cleanup EXIT
-          default_cid=$(docker run --rm -d --network "$internal_network" -p 127.0.0.1:39020:3000 -e API_PROXY_TARGET=http://127.0.0.1:9 petir2-web:${GITHUB_SHA})
+          default_cid=$(docker run --rm -d --network "$internal_network" -p 127.0.0.1:39020:3000 \
+            -e HOSTNAME=0.0.0.0 \
+            -e API_PROXY_TARGET=http://127.0.0.1:9 \
+            petir2-web:${GITHUB_SHA})
           docker network connect "$ingress_network" "$default_cid"
           branded_cid=$(docker run --rm -d --network "$internal_network" -p 127.0.0.1:39021:3000 \
+            -e HOSTNAME=0.0.0.0 \
             -e API_PROXY_TARGET=http://127.0.0.1:9 \
             -e PETIR_SITE_NAME='Nelayan Sungailiat' \
             -e PETIR_STATION_VERSION='2.0' \
