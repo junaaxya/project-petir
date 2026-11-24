@@ -3,8 +3,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.availability_logger import SERVER_MONITOR_SOURCE
 from tests.conftest import NODE_ID
+
+
+@pytest.fixture(autouse=True)
+def _operator_access(client, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.operator_api_key", "test-operator-key")
+    client.headers.update({"X-API-Key": "test-operator-key"})
 
 
 def _seed_run(session, epoch):

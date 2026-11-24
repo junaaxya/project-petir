@@ -57,6 +57,15 @@ services:
       DATABASE_URL: postgresql+psycopg://petir2_app:${PETIR2_APP_DB_PASSWORD}@postgres:5432/petir2_nelayan
       DASHBOARD_AUTH_ENABLED: ${PETIR2_DASHBOARD_AUTH_ENABLED:?set PETIR2_DASHBOARD_AUTH_ENABLED}
       DASHBOARD_API_KEY: ${PETIR2_DASHBOARD_API_KEY:-}
+      ADMIN_AUTH_MODE: ${PETIR2_ADMIN_AUTH_MODE:-disabled}
+      ADMIN_API_KEY: ${PETIR2_ADMIN_API_KEY:-}
+      OPERATOR_API_KEY: ${PETIR2_OPERATOR_API_KEY:-}
+      CLOUDFLARE_ACCESS_TEAM_DOMAIN: ${PETIR2_CLOUDFLARE_ACCESS_TEAM_DOMAIN:-}
+      CLOUDFLARE_ACCESS_AUDIENCE: ${PETIR2_CLOUDFLARE_ACCESS_AUDIENCE:-}
+      CLOUDFLARE_ACCESS_ADMIN_EMAILS: ${PETIR2_CLOUDFLARE_ACCESS_ADMIN_EMAILS:-}
+      CLOUDFLARE_ACCESS_OPERATOR_EMAILS: ${PETIR2_CLOUDFLARE_ACCESS_OPERATOR_EMAILS:-}
+      API_DOCS_ENABLED: "false"
+      SIREN_AUDIT_ENABLED: "false"
       SIREN_AUDIT_OPERATORS_JSON: ${PETIR2_SIREN_AUDIT_OPERATORS_JSON:-[]}
       WAN_FAILOVER_SNAPSHOT_DIR: /app/snapshots
       RATE_LIMIT_PER_NODE: ${PETIR2_RATE_LIMIT_PER_NODE:-120}
@@ -70,7 +79,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 12

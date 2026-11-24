@@ -89,32 +89,6 @@ def _normalize_operator_config() -> dict[str, dict[str, str]]:
     return operators
 
 
-def get_operator_options() -> list[dict[str, str]]:
-    return list(_normalize_operator_config().values())
-
-
-def resolve_operator(operator_id: str) -> dict[str, str]:
-    operators = _normalize_operator_config()
-    if not operators:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "code": "SIREN_AUDIT_NOT_CONFIGURED",
-                "message": "operator audit sirine belum dikonfigurasi di server",
-            },
-        )
-    operator = operators.get(operator_id)
-    if operator is None:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "SIREN_AUDIT_FORBIDDEN",
-                "message": "operator tidak diizinkan menjalankan test sirine",
-            },
-        )
-    return operator
-
-
 def list_nodes(session: Session) -> list[dict[str, Any]]:
     now = _now()
     rows = session.execute(
@@ -281,8 +255,19 @@ def _append_status_update(
     )
 
 
-def create_audit_request(session: Session, payload: SirenAuditRequestCreate) -> dict[str, Any]:
-    operator = resolve_operator(payload.requested_by)
+def create_audit_request(
+    session: Session,
+    payload: SirenAuditRequestCreate,
+    *,
+    actor_id: str,
+    actor_role: str,
+) -> dict[str, Any]:
+    if actor_role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "SIREN_AUDIT_FORBIDDEN", "message": "admin role required"},
+        )
+    operator = {"id": actor_id, "name": actor_id, "role": actor_role}
     resolve_target_node(session, payload.node_id)
     ensure_no_active_cooldown(session, payload.node_id)
 
@@ -412,10 +397,17 @@ def list_history(
     }
 
 
-def get_options(session: Session) -> dict[str, Any]:
+def get_options(session: Session, *, actor_id: str, actor_role: str) -> dict[str, Any]:
+    configured = _normalize_operator_config().get(actor_id, {})
     return {
         "nodes": list_nodes(session),
-        "operators": get_operator_options(),
+        "operators": [
+            {
+                "id": actor_id,
+                "name": configured.get("name", actor_id),
+                "role": actor_role,
+            }
+        ],
         "limits": {
             "durationSec": {"min": 0.5, "max": 10},
             "repeats": {"min": 1, "max": 3},
@@ -423,9 +415,9 @@ def get_options(session: Session) -> dict[str, Any]:
             "cooldownSeconds": settings.siren_audit_cooldown_seconds,
         },
         "auth": {
-            "dashboardAuthEnabled": settings.dashboard_auth_enabled,
-            "operatorAllowlistConfigured": len(get_operator_options()) > 0,
-            "allowedRoles": sorted(ALLOWED_OPERATOR_ROLES),
+            "serverIdentityVerified": True,
+            "clientRequestedByIgnored": True,
+            "allowedRoles": ["admin"],
         },
     }
 

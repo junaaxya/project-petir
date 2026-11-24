@@ -56,4 +56,11 @@ assert environment["PETIR_STATION_VERSION"] == "2.0"
 assert environment["PETIR_SITE_ID"] == "nelayan-sungailiat"
 assert environment["PETIR_PUBLIC_DOMAIN"] == "nelayan-sungailiat.petirlabs.com"
 
-print("Petir 2 Compose isolation and branding contract: OK")
+server_environment = server["environment"]
+assert server_environment["ADMIN_AUTH_MODE"] == "disabled"
+assert server_environment["API_DOCS_ENABLED"] == "false"
+assert server_environment["SIREN_AUDIT_ENABLED"] == "false"
+assert server_environment["SIREN_AUDIT_OPERATORS_JSON"] == "[]"
+assert "/healthz" in server["healthcheck"]["test"][-1]
+
+print("Petir 2 Compose isolation, branding, and access-control contract: OK")

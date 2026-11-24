@@ -16,7 +16,14 @@ from app.query.weather import router as weather_router
 from app.settings import settings
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="PetirDashboard API", version="1.0.0")
+    docs_enabled = settings.api_docs_enabled
+    app = FastAPI(
+        title="PetirDashboard API",
+        version="1.0.0",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -24,6 +31,10 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
+
+    @app.get("/healthz", include_in_schema=False)
+    def healthz() -> dict[str, str]:
+        return {"status": "ok"}
 
     @app.exception_handler(IngestError)
     async def _ingest_error_handler(_: Request, exc: IngestError) -> JSONResponse:

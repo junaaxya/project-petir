@@ -76,11 +76,21 @@ The backend image starts only Uvicorn. It never runs Alembic automatically.
 ## Authentication gate
 
 Node ingest uses a separate per-node bearer token and validates that the token's node
-matches the envelope `node_id`. Dashboard/admin read routes must be protected before
-public routing. Prefer Cloudflare Access for browser access, with an explicit policy that
-keeps `/api/ingest/sync-batch` available to registered node tokens. The built-in
-`X-API-Key` mode is suitable only for controlled API clients; the browser UI does not
-persist or embed that secret.
+matches the envelope `node_id`. Privileged API authentication is separate from public
+monitoring and fails closed when `PETIR2_ADMIN_AUTH_MODE=disabled`:
+
+- `api_key` accepts server-only admin/operator keys for controlled API clients;
+- `cloudflare_access` verifies the Access JWT signature, issuer, audience, expiry,
+  and email allowlist inside the backend;
+- `/api/admin/*` and browser siren routes require the admin role;
+- `/api/system/*` and `/api/ingest/runs` require operator or admin;
+- machine ingest and siren callbacks never use browser authentication.
+
+The dedicated template also disables `/openapi.json`, `/docs`, `/redoc`, and every
+siren route. `/healthz` remains available for the internal container healthcheck.
+Do not enable siren routes or add operators during the public pilot. The built-in
+`X-API-Key` mode is not for browser storage; use verified Cloudflare Access JWTs for
+browser-admin traffic after the Access application details are approved.
 
 The complete endpoint classification and Phase 3 recommendation are in
 [`../../docs/petir2-public-access-security.md`](../../docs/petir2-public-access-security.md).
