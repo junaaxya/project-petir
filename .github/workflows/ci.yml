@@ -74,6 +74,7 @@ jobs:
       - run: docker compose -f docker-compose.yml config -q
       - run: docker compose --env-file deploy/petir2-nelayan/.env.example -f deploy/petir2-nelayan/compose.yml config -q
       - run: docker compose --profile migration --env-file deploy/petir2-nelayan/.env.example -f deploy/petir2-nelayan/compose.yml config -q
+      - run: python scripts/check_petir2_compose.py
       - run: sh -n deploy/petir2-nelayan/initdb/10-create-app-role.sh
 
   docker:
@@ -92,8 +93,27 @@ jobs:
         run: docker build --label org.opencontainers.image.revision=${GITHUB_SHA} -t petir2-web:${GITHUB_SHA} -f web/Dockerfile .
       - name: Smoke-test frontend runtime
         run: |
-          cid=$(docker run --rm -d -p 127.0.0.1:39020:3000 -e API_PROXY_TARGET=http://127.0.0.1:9 petir2-web:${GITHUB_SHA})
-          trap 'docker stop "$cid" >/dev/null 2>&1 || true' EXIT
+          internal_network="petir2-ci-internal-${GITHUB_RUN_ID}"
+          ingress_network="petir2-ci-ingress-${GITHUB_RUN_ID}"
+          docker network create --internal "$internal_network" >/dev/null
+          docker network create "$ingress_network" >/dev/null
+          cleanup() {
+            docker stop "$default_cid" "$branded_cid" >/dev/null 2>&1 || true
+            docker network rm "$internal_network" "$ingress_network" >/dev/null 2>&1 || true
+          }
+          default_cid=""
+          branded_cid=""
+          trap cleanup EXIT
+          default_cid=$(docker run --rm -d --network "$internal_network" -p 127.0.0.1:39020:3000 -e API_PROXY_TARGET=http://127.0.0.1:9 petir2-web:${GITHUB_SHA})
+          docker network connect "$ingress_network" "$default_cid"
+          branded_cid=$(docker run --rm -d --network "$internal_network" -p 127.0.0.1:39021:3000 \
+            -e API_PROXY_TARGET=http://127.0.0.1:9 \
+            -e PETIR_SITE_NAME='Nelayan Sungailiat' \
+            -e PETIR_STATION_VERSION='2.0' \
+            -e PETIR_SITE_ID='nelayan-sungailiat' \
+            -e PETIR_PUBLIC_DOMAIN='nelayan-sungailiat.petirlabs.com' \
+            petir2-web:${GITHUB_SHA})
+          docker network connect "$ingress_network" "$branded_cid"
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:39020/ >/tmp/petir-home.html; then
               break
@@ -105,3 +125,18 @@ jobs:
           asset=$(grep -oE '/_next/static/[^" ]+\.(css|js)' /tmp/petir-home.html | head -n1)
           test -n "$asset"
           curl --fail --silent --show-error "http://127.0.0.1:39020${asset}" >/dev/null
+          grep -Fq '<title>PetirDashboard</title>' /tmp/petir-home.html
+          grep -Fq 'data-petir-site-id="petir-dashboard"' /tmp/petir-home.html
+          python -c "s=open('/tmp/petir-home.html').read(); assert 'data-site-identity' not in s"
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:39021/ >/tmp/petir2-home.html; then
+              break
+            fi
+            sleep 1
+          done
+          grep -Fq '<title>Nelayan Sungailiat | PetirDashboard</title>' /tmp/petir2-home.html
+          grep -Fq 'data-petir-site-id="nelayan-sungailiat"' /tmp/petir2-home.html
+          grep -Fq 'data-petir-station-version="2.0"' /tmp/petir2-home.html
+          grep -Fq '>Nelayan Sungailiat<' /tmp/petir2-home.html
+          python -c "import re; s=open('/tmp/petir2-home.html').read(); assert 'Stasiun 2.0' in re.sub(r'<[^>]*>', '', s)"
