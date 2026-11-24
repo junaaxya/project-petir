@@ -92,6 +92,11 @@ services:
     restart: unless-stopped
     environment:
       API_PROXY_TARGET: http://server:8000
+      HOSTNAME: "0.0.0.0"
+      PETIR_SITE_NAME: ${PETIR_SITE_NAME:-Nelayan Sungailiat}
+      PETIR_STATION_VERSION: ${PETIR_STATION_VERSION:-2.0}
+      PETIR_SITE_ID: ${PETIR_SITE_ID:-nelayan-sungailiat}
+      PETIR_PUBLIC_DOMAIN: ${PETIR_PUBLIC_DOMAIN:-nelayan-sungailiat.petirlabs.com}
     depends_on:
       server:
         condition: service_healthy
@@ -107,7 +112,10 @@ services:
       - no-new-privileges:true
     networks:
       - internal
+      - host_ingress
 
 networks:
   internal:
     internal: true
+  host_ingress:
+    driver: bridge

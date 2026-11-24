@@ -15,12 +15,46 @@ This directory does not modify Petir 1, Cloudflare, DNS, or Raspberry Pi service
 - Container/network names: generated from the unique Compose project; no `container_name`
 - Images: immutable Git-SHA tag plus OCI revision label
 
+## Runtime networking fix
+
+The release Compose file includes the two settings proven necessary by the
+internal Phase 2 deployment:
+
+- `HOSTNAME=0.0.0.0` makes the Next.js standalone server listen on the
+  container interfaces instead of only the generated container hostname;
+- web joins both `internal` (to reach `server:8000`) and `host_ingress` (to
+  publish the loopback-only host port).
+
+PostgreSQL and the backend remain attached only to `internal`, which is marked
+`internal: true`. Neither service has a published host port. The only host bind
+remains `127.0.0.1:3020:3000`.
+
+The old out-of-repository `compose.runtime.yml` workaround is not needed for a
+release containing this fix. Do not combine both definitions after upgrading;
+validate the rendered Compose model first.
+
+## Runtime site identity
+
+The frontend reads these public, non-secret variables at request time:
+
+- `PETIR_SITE_NAME`
+- `PETIR_STATION_VERSION`
+- `PETIR_SITE_ID`
+- `PETIR_PUBLIC_DOMAIN` (hostname only, without scheme or path)
+
+The Petir 2 template defaults to `Nelayan Sungailiat`, station `2.0`, site ID
+`nelayan-sungailiat`, and `nelayan-sungailiat.petirlabs.com`. When the variables
+are absent, the same image keeps the Petir 1-compatible `PetirDashboard`
+identity. Do not put credentials in these variables or rename them to
+`NEXT_PUBLIC_*`; the server passes only the resolved public identity to the UI.
+
 ## Static validation (safe in Phase 1)
 
 ```bash
 cd deploy/petir2-nelayan
 docker compose --env-file .env.example -f compose.yml config -q
 docker compose --env-file .env.example -f compose.yml config
+python ../../scripts/check_petir2_compose.py
 ```
 
 Do not run `up`, `down`, or the migration profile during Phase 1.
@@ -47,6 +81,9 @@ public routing. Prefer Cloudflare Access for browser access, with an explicit po
 keeps `/api/ingest/sync-batch` available to registered node tokens. The built-in
 `X-API-Key` mode is suitable only for controlled API clients; the browser UI does not
 persist or embed that secret.
+
+The complete endpoint classification and Phase 3 recommendation are in
+[`../../docs/petir2-public-access-security.md`](../../docs/petir2-public-access-security.md).
 
 ## Rollback boundary
 
