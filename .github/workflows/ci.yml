@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: petir_test
+          POSTGRES_PASSWORD: petir_test
+          POSTGRES_DB: petir_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U petir_test -d petir_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://petir_test:petir_test@127.0.0.1:5432/petir_test
+      TEST_DATABASE_URL: postgresql+psycopg://petir_test:petir_test@127.0.0.1:5432/petir_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv venv
+      - run: uv pip install -e 'packages/contracts[test]' -e 'server[test]' -e 'edge[test]'
+      - name: Contract, edge, and server unit tests
+        run: .venv/bin/pytest -q packages/contracts/tests edge/tests server/tests/unit
+      - name: PostgreSQL integration tests (no skips)
+        run: |
+          .venv/bin/pytest -q server/tests/integration --junitxml=server-integration.xml
+          .venv/bin/python scripts/check_junit_no_skips.py server-integration.xml
+      - name: PostgreSQL E2E tests (no skips)
+        run: |
+          .venv/bin/pytest -q tests/e2e --junitxml=e2e-tests.xml
+          .venv/bin/python scripts/check_junit_no_skips.py e2e-tests.xml
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm audit --audit-level=high
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f docker-compose.yml config -q
+      - run: docker compose --env-file deploy/petir2-nelayan/.env.example -f deploy/petir2-nelayan/compose.yml config -q
+      - run: docker compose --profile migration --env-file deploy/petir2-nelayan/.env.example -f deploy/petir2-nelayan/compose.yml config -q
+      - run: sh -n deploy/petir2-nelayan/initdb/10-create-app-role.sh
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [python, web, compose]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build --label org.opencontainers.image.revision=${GITHUB_SHA} -t petir2-server:${GITHUB_SHA} -f server/Dockerfile .
+      - name: Verify backend does not auto-migrate
+        run: |
+          command_json=$(docker image inspect petir2-server:${GITHUB_SHA} --format '{{json .Config.Cmd}}')
+          echo "$command_json"
+          test "$command_json" = '["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]'
+      - name: Build frontend image
+        run: docker build --label org.opencontainers.image.revision=${GITHUB_SHA} -t petir2-web:${GITHUB_SHA} -f web/Dockerfile .
+      - name: Smoke-test frontend runtime
+        run: |
+          cid=$(docker run --rm -d -p 127.0.0.1:39020:3000 -e API_PROXY_TARGET=http://127.0.0.1:9 petir2-web:${GITHUB_SHA})
+          trap 'docker stop "$cid" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:39020/ >/tmp/petir-home.html; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:39020/petirlabs >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:39020/lightning >/dev/null
+          asset=$(grep -oE '/_next/static/[^" ]+\.(css|js)' /tmp/petir-home.html | head -n1)
+          test -n "$asset"
+          curl --fail --silent --show-error "http://127.0.0.1:39020${asset}" >/dev/null

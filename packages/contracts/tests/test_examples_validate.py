@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
 
 from petir_contracts import (
     CONTRACT_VERSION,
@@ -24,6 +25,14 @@ SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
 
 def _load(path: Path) -> dict:
     return json.loads(path.read_text())
+
+
+def _assert_schema_and_model_reject(schema_name: str, payload: dict, model) -> None:
+    schema = _load(SCHEMA_DIR / "query" / schema_name)
+    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    assert list(validator.iter_errors(payload)), "JSON Schema unexpectedly accepted payload"
+    with pytest.raises(Exception):
+        model.model_validate(payload)
 
 
 def test_contract_version_matches_version_file():
@@ -89,7 +98,7 @@ def test_query_response_schemas_and_models_are_valid():
     for schema_name, payload, model in cases:
         schema = _load(SCHEMA_DIR / "query" / schema_name)
         Draft202012Validator.check_schema(schema)
-        Draft202012Validator(schema).validate(payload)
+        Draft202012Validator(schema, format_checker=FormatChecker()).validate(payload)
         assert model.model_validate(payload).items is not None
 
 
@@ -120,9 +129,104 @@ def test_query_event_enum_rejects_contract_drift():
     }
     schema = _load(SCHEMA_DIR / "query" / "lightning_events_response.json")
     with pytest.raises(Exception):
-        Draft202012Validator(schema).validate(payload)
+        Draft202012Validator(schema, format_checker=FormatChecker()).validate(payload)
     with pytest.raises(Exception):
         LightningEventsResponse.model_validate(payload)
+
+
+def _daily_forecast_payload() -> dict:
+    return {
+        "node_id": None,
+        "forecast_date_wib": "2026-11-21",
+        "today_label": "Sabtu, 21 November 2026",
+        "timezone": "Asia/Jakarta",
+        "computed_at_utc": "2026-11-21T12:00:00+00:00",
+        "status": "insufficient_data",
+        "sample_count": 0,
+        "latest_sample_utc": None,
+        "items": [],
+    }
+
+
+def _lightning_events_payload() -> dict:
+    return {
+        "node_id": None,
+        "items": [],
+        "meta": {
+            "count": 0,
+            "page": 1,
+            "page_size": 20,
+            "total_items": 0,
+            "total_pages": 1,
+            "has_prev": False,
+            "has_next": False,
+        },
+    }
+
+
+def test_query_extra_property_is_rejected_by_schema_and_model():
+    payload = _daily_forecast_payload()
+    payload["unexpected"] = True
+    _assert_schema_and_model_reject(
+        "daily_forecast_response.json", payload, DailyForecastResponse
+    )
+
+
+def test_daily_forecast_negative_sample_count_matches_schema():
+    payload = _daily_forecast_payload()
+    payload["sample_count"] = -1
+    _assert_schema_and_model_reject(
+        "daily_forecast_response.json", payload, DailyForecastResponse
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("count", -1), ("page", 0), ("page_size", 0), ("total_items", -1)],
+)
+def test_pagination_constraints_match_schema(field, value):
+    payload = _lightning_events_payload()
+    payload["meta"][field] = value
+    _assert_schema_and_model_reject(
+        "lightning_events_response.json", payload, LightningEventsResponse
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("forecast_date_wib", "21-11-2026"),
+        ("forecast_date_wib", 1_700_000_000),
+        ("computed_at_utc", "not-a-datetime"),
+        ("computed_at_utc", 1_700_000_000),
+        ("latest_sample_utc", "2026-13-99T99:99:99Z"),
+    ],
+)
+def test_daily_forecast_date_formats_match_schema(field, value):
+    payload = _daily_forecast_payload()
+    payload[field] = value
+    _assert_schema_and_model_reject(
+        "daily_forecast_response.json", payload, DailyForecastResponse
+    )
+
+
+def test_lightning_event_datetime_format_matches_schema():
+    payload = _lightning_events_payload()
+    payload["items"] = [
+        {
+            "edge_id": 1,
+            "ts_pi_utc": "not-a-datetime",
+            "event_type": None,
+            "distance_km": None,
+            "energy_raw": None,
+            "noise_level": None,
+            "source": None,
+            "device": None,
+        }
+    ]
+    _assert_schema_and_model_reject(
+        "lightning_events_response.json", payload, LightningEventsResponse
+    )
 
 
 def test_all_row_schemas_parse():
@@ -207,12 +311,62 @@ def test_envelope_validates_with_pydantic(payload):
         model.model_validate(row)
 
 
+@pytest.mark.parametrize(
+    ("envelope", "field", "value"),
+    [
+        (EXAMPLE_APPEND, "edge_id", 0),
+        (EXAMPLE_APPEND, "ts_pi_utc", "not-a-datetime"),
+        (EXAMPLE_APPEND, "ts_pi_utc", 1_700_000_000),
+        (EXAMPLE_SUMMARY, "change_seq", 0),
+        (EXAMPLE_SUMMARY, "minute_utc", "not-a-datetime"),
+        (EXAMPLE_SUMMARY, "minute_utc", 1_700_000_000),
+    ],
+)
+def test_row_schema_and_pydantic_reject_invalid_cursor_or_datetime(
+    envelope, field, value
+):
+    row = json.loads(json.dumps(envelope["rows"][0]))
+    row[field] = value
+    table = envelope["table"]
+    schema = _load(SCHEMA_DIR / "rows" / f"{table}.json")
+    registry = Registry().with_resource(
+        "petir:enums", Resource.from_contents(_load(SCHEMA_DIR / "enums.json"))
+    )
+    validator = Draft202012Validator(
+        schema, registry=registry, format_checker=FormatChecker()
+    )
+    assert list(validator.iter_errors(row)), "JSON Schema unexpectedly accepted row"
+    with pytest.raises(Exception):
+        ROW_MODELS[table].model_validate(row)
+
+
 def test_extra_field_is_rejected():
     bad = json.loads(json.dumps(EXAMPLE_APPEND))
     bad["rows"][0]["unexpected_field"] = 1
     env = SyncBatchEnvelope.model_validate(bad)
     with pytest.raises(Exception):
         ROW_MODELS[env.table.value].model_validate(env.rows[0])
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("db_epoch",), "not-a-uuid"),
+        (("run_id",), "not-a-uuid"),
+        (("cursor", "last_edge_id"), -1),
+        (("run", "duration_ms"), -1),
+        (("run", "sequence"), 0),
+        (("run", "started_at_utc"), 1_700_000_000),
+    ],
+)
+def test_envelope_constraints_reject_invalid_values(path, value):
+    bad = json.loads(json.dumps(EXAMPLE_APPEND))
+    target = bad
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(Exception):
+        SyncBatchEnvelope.model_validate(bad)
 
 
 def test_bad_enum_is_rejected():

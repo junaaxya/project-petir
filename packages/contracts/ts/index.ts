@@ -311,8 +311,8 @@ export interface PaginationMeta {
   total_pages: number;
   has_prev: boolean;
   has_next: boolean;
-  requested_limit?: number;
-  scope?: string;
+  requested_limit?: number | null;
+  scope?: string | null;
 }
 
 export interface LightningEventsResponse {

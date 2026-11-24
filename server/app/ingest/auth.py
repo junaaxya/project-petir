@@ -7,7 +7,7 @@ from collections import defaultdict
 from threading import Lock
 
 from fastapi import Depends, Header, Request
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
@@ -24,13 +24,24 @@ def verify_node_token(
     authorization: str | None = Header(default=None),
     session: Session = Depends(get_session),
 ) -> EdgeNode:
-    if not authorization or not authorization.startswith("Bearer "):
+    if not authorization:
         raise IngestError(401, "BAD_TOKEN", "missing or malformed bearer token")
-    token = authorization[len("Bearer ") :].strip()
+    scheme, separator, token = authorization.partition(" ")
+    token = token.strip()
+    if separator != " " or scheme.lower() != "bearer" or not token or len(token) > 512:
+        raise IngestError(401, "BAD_TOKEN", "missing or malformed bearer token")
     candidate = hash_token(token)
 
     matched: EdgeNode | None = None
-    for node in session.execute(select(EdgeNode)).scalars():
+    candidates = session.execute(
+        select(EdgeNode).where(
+            or_(
+                EdgeNode.api_token_hash == candidate,
+                EdgeNode.previous_token_hash == candidate,
+            )
+        )
+    ).scalars()
+    for node in candidates:
         if hmac.compare_digest(node.api_token_hash, candidate):
             matched = node
             break

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -71,8 +70,8 @@ def ingest_batch(
         )
 
     table = envelope.table.value
-    run_id = uuid.UUID(envelope.run_id)
-    db_epoch = uuid.UUID(envelope.db_epoch)
+    run_id = envelope.run_id
+    db_epoch = envelope.db_epoch
     strategy = cursor_strategy(table)
 
     valid_rows, rejected = _validate_rows(table, envelope.rows)
@@ -84,7 +83,7 @@ def ingest_batch(
         duration_ms = None
         if envelope.run is not None:
             if envelope.run.started_at_utc is not None:
-                started_at = datetime.fromisoformat(envelope.run.started_at_utc)
+                started_at = envelope.run.started_at_utc
             duration_ms = envelope.run.duration_ms
         if run is None:
             run = SyncRun(
@@ -99,6 +98,12 @@ def ingest_batch(
                 duration_ms=duration_ms,
             )
             session.add(run)
+        elif run.node_id != node.node_id:
+            raise IngestError(
+                409,
+                "RUN_ID_CONFLICT",
+                "run_id is already associated with another node",
+            )
         session.flush()
 
         accepted = upsert_rows(
@@ -170,7 +175,7 @@ def ingest_batch(
         )
 
     return SyncBatchResponse(
-        run_id=envelope.run_id,
+        run_id=run_id,
         table=envelope.table,
         status=_build_status(accepted, rejected_count),
         accepted=accepted,

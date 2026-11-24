@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import os
 import sys
 import uuid
@@ -12,96 +11,8 @@ _SERVER_ROOT = Path(__file__).resolve().parent.parent
 if str(_SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(_SERVER_ROOT))
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql+psycopg://petir:petir@localhost:55433/petir"
-)
-
-NODE_ID = "rpi-lab-01"
-NODE_TOKEN = "test-token-abc123"
-
-
-def new_run_id() -> str:
-    return str(uuid.uuid4())
-
-
-def new_db_epoch() -> str:
-    return str(uuid.uuid4())
-
-
-def auth_headers(token: str = NODE_TOKEN) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture(scope="session")
-def engine():
-    from sqlalchemy import create_engine
-
-    eng = create_engine(DATABASE_URL, future=True)
-    try:
-        eng.connect().close()
-    except Exception as exc:
-        pytest.skip(f"no postgres available at {DATABASE_URL}: {exc}")
-
-    from app.models import Base
-
-    Base.metadata.drop_all(eng)
-    Base.metadata.create_all(eng)
-    yield eng
-    Base.metadata.drop_all(eng)
-    eng.dispose()
-
-
-@pytest.fixture
-def connection(engine):
-    conn = engine.connect()
-    trans = conn.begin()
-    yield conn
-    trans.rollback()
-    conn.close()
-
-
-@pytest.fixture
-def session(connection):
-    from sqlalchemy.orm import Session
-
-    from app.models.registry import EdgeNode
-
-    sess = Session(
-        bind=connection,
-        join_transaction_mode="create_savepoint",
-        expire_on_commit=False,
-    )
-    sess.add(
-        EdgeNode(
-            node_id=NODE_ID,
-            api_token_hash=hashlib.sha256(NODE_TOKEN.encode("utf-8")).hexdigest(),
-            enabled=True,
-        )
-    )
-    sess.commit()
-    yield sess
-    sess.close()
-
-
-@pytest.fixture
-def client(session):
-    from fastapi.testclient import TestClient
-
-    from app.db import get_session
-    from app.main import create_app
-
-    app = create_app()
-
-    def _override_session():
-        yield session
-
-    app.dependency_overrides[get_session] = _override_session
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
-
 TEST_DB_URL = os.environ.get(
-    "DATABASE_URL", "postgresql+psycopg://petir:petir@localhost:55433/petir"
+    "TEST_DATABASE_URL", "postgresql+psycopg://petir:petir@localhost:55433/petir"
 )
 
 NODE_ID = "rpi-test-01"

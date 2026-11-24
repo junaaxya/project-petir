@@ -37,8 +37,8 @@
         "total_pages": {"type": "integer", "minimum": 1},
         "has_prev": {"type": "boolean"},
         "has_next": {"type": "boolean"},
-        "requested_limit": {"type": "integer", "minimum": 1},
-        "scope": {"type": "string"}
+        "requested_limit": {"type": ["integer", "null"], "minimum": 1},
+        "scope": {"type": ["string", "null"]}
       }
     }
   }

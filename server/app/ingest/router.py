@@ -12,6 +12,7 @@ from app.ingest.auth import check_rate_limit, verify_node_token
 from app.ingest.errors import IngestError
 from app.ingest.service import ingest_batch
 from app.models.registry import EdgeNode, SyncRun
+from app.query.auth import verify_dashboard_user
 from petir_contracts import SyncBatchEnvelope, SyncBatchResponse
 
 router = APIRouter(prefix="/api/ingest")
@@ -43,6 +44,7 @@ def post_sync_batch(
 
 @router.get("/runs")
 def get_runs(
+    _: Annotated[str | None, Depends(verify_dashboard_user)],
     session: Annotated[Session, Depends(get_session)],
     node: Optional[str] = Query(default=None),
     status: Optional[str] = Query(default=None),

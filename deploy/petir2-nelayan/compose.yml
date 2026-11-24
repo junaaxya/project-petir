@@ -1,0 +1,113 @@
+name: petir2_nelayan
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: petir2_admin
+      POSTGRES_PASSWORD: ${PETIR2_DB_ADMIN_PASSWORD:?set PETIR2_DB_ADMIN_PASSWORD}
+      POSTGRES_DB: petir2_nelayan
+      PETIR2_MIGRATOR_DB_PASSWORD: ${PETIR2_MIGRATOR_DB_PASSWORD:?set PETIR2_MIGRATOR_DB_PASSWORD}
+      PETIR2_APP_DB_PASSWORD: ${PETIR2_APP_DB_PASSWORD:?set PETIR2_APP_DB_PASSWORD}
+    expose:
+      - "5432"
+    volumes:
+      - ${PETIR2_POSTGRES_DATA_DIR:-/mnt/data/apps/petir2-nelayan/postgres}:/var/lib/postgresql/data
+      - ./initdb/10-create-app-role.sh:/docker-entrypoint-initdb.d/10-create-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petir2_admin -d petir2_nelayan"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  migrate:
+    profiles: ["migration"]
+    image: petir2-server:${PETIR2_IMAGE_TAG:?set immutable PETIR2_IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: server/Dockerfile
+      labels:
+        org.opencontainers.image.revision: ${PETIR2_GIT_SHA:?set PETIR2_GIT_SHA}
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://petir2_migrator:${PETIR2_MIGRATOR_DB_PASSWORD}@postgres:5432/petir2_nelayan
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  server:
+    image: petir2-server:${PETIR2_IMAGE_TAG:?set immutable PETIR2_IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: server/Dockerfile
+      labels:
+        org.opencontainers.image.revision: ${PETIR2_GIT_SHA:?set PETIR2_GIT_SHA}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://petir2_app:${PETIR2_APP_DB_PASSWORD}@postgres:5432/petir2_nelayan
+      DASHBOARD_AUTH_ENABLED: ${PETIR2_DASHBOARD_AUTH_ENABLED:?set PETIR2_DASHBOARD_AUTH_ENABLED}
+      DASHBOARD_API_KEY: ${PETIR2_DASHBOARD_API_KEY:-}
+      SIREN_AUDIT_OPERATORS_JSON: ${PETIR2_SIREN_AUDIT_OPERATORS_JSON:-[]}
+      WAN_FAILOVER_SNAPSHOT_DIR: /app/snapshots
+      RATE_LIMIT_PER_NODE: ${PETIR2_RATE_LIMIT_PER_NODE:-120}
+      RATE_LIMIT_WINDOW_SECONDS: ${PETIR2_RATE_LIMIT_WINDOW_SECONDS:-60}
+      CORS_ALLOW_ORIGINS: ${PETIR2_CORS_ALLOW_ORIGINS:-}
+    volumes:
+      - ${PETIR2_SNAPSHOT_DIR:-/mnt/data/apps/petir2-nelayan/snapshots}:/app/snapshots:ro
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  web:
+    image: petir2-web:${PETIR2_IMAGE_TAG:?set immutable PETIR2_IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: ""
+      labels:
+        org.opencontainers.image.revision: ${PETIR2_GIT_SHA:?set PETIR2_GIT_SHA}
+    restart: unless-stopped
+    environment:
+      API_PROXY_TARGET: http://server:8000
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3020:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+networks:
+  internal:
+    internal: true

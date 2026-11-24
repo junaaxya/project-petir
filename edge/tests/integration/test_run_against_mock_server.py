@@ -50,7 +50,7 @@ def _ack(request: httpx.Request) -> httpx.Response:
             "accepted": len(rows),
             "rejected": [],
             "accepted_cursor": accepted_cursor,
-            "server_contract_version": "1.0.0",
+            "server_contract_version": "2.1.0",
         },
     )
 

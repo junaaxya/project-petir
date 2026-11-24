@@ -23,14 +23,17 @@ edge sync worker. Neither machine needs a public IP — see
 ```bash
 git clone <repo-url> petir && cd petir
 cp .env.example .env          # fill POSTGRES_PASSWORD + auth choice (see step 4)
-docker compose up -d --build  # postgres + server + web
+docker compose up -d postgres
+docker compose --profile migration run --rm --no-deps migrate  # explicit, reviewed step
+docker compose up -d --build server web
 docker compose ps             # all healthy
-docker compose logs server    # confirm "alembic upgrade head" ran to 0004
+docker compose logs server    # confirm uvicorn is listening on 8000
 ```
 
 - Postgres is **not** published to the host (`expose` only) — reachable only by
   the server container.
-- Server runs `alembic upgrade head` on start (migrations 0001→0004).
+- Server startup runs only Uvicorn. Alembic migration is an explicit one-shot
+  deployment step and must complete through revision `0007` before server start.
 - `NEXT_PUBLIC_API_BASE` is empty → the dashboard calls the API with relative
   `/api` paths (same origin via Next.js). It is baked at **build** time via a
   Docker build ARG; changing it requires a rebuild (`docker compose build web`).
@@ -105,10 +108,11 @@ Full procedure + rollback: [edge-deploy.md](./edge-deploy.md) and
 ## 6. First real sync — order matters (anti data-loss)
 
 The cursor advances past quarantined rows, so the contract must match the firmware
-BEFORE the first sync. The current contract (v2.0.0) is already validated against
-real Pi data (110459 rows, 0 rejected) — see [edge-schema-drift.md](./edge-schema-drift.md).
+BEFORE the first sync. The current contract (v2.1.0) is validated by the shared
+schema/Pydantic contract suite and remains major-version compatible with v2 edge workers.
+See [edge-schema-drift.md](./edge-schema-drift.md) for the earlier real-Pi validation.
 
-1. Confirm server is on contract **v2** (it is — `CONTRACT_VERSION = 2.0.0`).
+1. Confirm server is on contract **v2** (currently `CONTRACT_VERSION = 2.1.0`).
 2. Edge ships with the v2 normalize layer (`healthy→ok`, `warning→warn`,
    `noisy→noise`, `active→activity`).
 3. Enable the timer; cursors start at zero → full history ingests cleanly.

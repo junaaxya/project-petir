@@ -36,6 +36,15 @@ def test_dashboard_auth_enabled_accepts_correct_key(client, monkeypatch):
     assert r.status_code == 200
 
 
+def test_ingest_runs_uses_dashboard_auth(client, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.dashboard_auth_enabled", True)
+    monkeypatch.setattr("app.settings.settings.dashboard_api_key", "secret-key-123")
+    assert client.get("/api/ingest/runs").status_code == 401
+    assert client.get(
+        "/api/ingest/runs", headers={"X-API-Key": "secret-key-123"}
+    ).status_code == 200
+
+
 def test_rate_limit_blocks_after_threshold(client, session, monkeypatch):
     monkeypatch.setattr("app.settings.settings.rate_limit_per_node", 2)
     monkeypatch.setattr("app.settings.settings.rate_limit_window_seconds", 60)
