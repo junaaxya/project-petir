@@ -59,7 +59,7 @@ export function AppShell({ children, site }: { children: ReactNode; site: SiteCo
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl overflow-x-clip px-4 py-4 pb-20 sm:py-6 sm:pb-6">{children}</main>
+      <main className="mx-auto max-w-7xl overflow-x-clip px-4 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:py-6 sm:pb-6">{children}</main>
       <ResearchFooter />
       <BottomNav />
     </>

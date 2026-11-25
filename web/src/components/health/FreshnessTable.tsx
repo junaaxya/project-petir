@@ -24,8 +24,10 @@ function fmtTs(ts: string | null): string {
   });
 }
 
-function streamKindLabel(kind: HealthStream["kind"]): string {
-  return kind === "event" ? "aktivitas" : "periodik";
+function streamLabel(stream: string): string {
+  if (stream === "weather") return "Cuaca";
+  if (stream === "lightning") return "Petir";
+  return stream;
 }
 
 interface FreshnessTableProps {
@@ -55,7 +57,7 @@ export function FreshnessTable({ streams, loading }: FreshnessTableProps) {
             <thead>
               <tr className="border-b border-[var(--color-border)]">
                 <th className="pb-2 text-left text-xs font-medium text-[var(--color-text-muted)]">
-                  Tabel
+                  Data
                 </th>
                 <th className="pb-2 text-left text-xs font-medium text-[var(--color-text-muted)]">
                   Terakhir Dilihat
@@ -71,18 +73,15 @@ export function FreshnessTable({ streams, loading }: FreshnessTableProps) {
             <tbody>
               {streams.map((stream) => (
                 <tr
-                  key={stream.table}
+                  key={stream.stream}
                   className="border-b border-[var(--color-border)] last:border-0"
                 >
                   <td className="py-2">
                     <div className="font-mono text-xs text-[var(--color-text)]">
-                      {stream.table}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
-                      {streamKindLabel(stream.kind)}
+                      {streamLabel(stream.stream)}
                     </div>
                   </td>
-                  <td className="py-2 text-[var(--color-text)]">{fmtTs(stream.last_ts_utc)}</td>
+                  <td className="py-2 text-[var(--color-text)]">{fmtTs(stream.updated_at_utc)}</td>
                   <td className="py-2 text-right text-[var(--color-text-muted)]">
                     {fmtAge(stream.age_seconds)}
                   </td>

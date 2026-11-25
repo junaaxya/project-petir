@@ -28,7 +28,7 @@ export type PaginationMeta = ContractPaginationMeta;
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
-class ApiRequestError extends Error {
+export class ApiRequestError extends Error {
   public readonly payload?: Record<string, unknown>;
 
   constructor(
@@ -41,6 +41,24 @@ class ApiRequestError extends Error {
     this.name = "ApiRequestError";
     this.payload = payload;
   }
+}
+
+export type ApiFailureKind = "authentication" | "forbidden" | "unavailable" | "network" | "unexpected";
+
+export function apiFailureKind(error: unknown): ApiFailureKind {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 401) return "authentication";
+    if (error.status === 403) return "forbidden";
+    if (error.status === 503) return "unavailable";
+    return "unexpected";
+  }
+  if (error instanceof TypeError) return "network";
+  return "unexpected";
+}
+
+export function shouldRetryApiRequest(failureCount: number, error: unknown): boolean {
+  if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) return false;
+  return failureCount < 2;
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -94,6 +112,11 @@ export function getWeatherHistory(params: WeatherHistoryParams): Promise<History
 export function getHealthLatest(node?: string): Promise<HealthLatestResponse> {
   const q = node ? `?node=${encodeURIComponent(node)}` : "";
   return apiFetch<HealthLatestResponse>(`/api/health/latest${q}`);
+}
+
+export function getHealthDiagnostics(node?: string): Promise<import("./types").HealthDiagnosticsResponse> {
+  const q = node ? `?node=${encodeURIComponent(node)}` : "";
+  return apiFetch<import("./types").HealthDiagnosticsResponse>(`/api/health/diagnostics${q}`);
 }
 
 export interface LightningLatestMinute {
@@ -512,5 +535,3 @@ export function createSirenAuditRequest(payload: CreateSirenAuditPayload): Promi
     body: JSON.stringify(payload),
   });
 }
-
-export { ApiRequestError };

@@ -7,12 +7,6 @@ import type { LightningStatus } from "@contracts";
 import { isRealtimeUnavailable, realtimeSnapshotDetail } from "@/lib/realtime";
 import { nodeStatusLabel, streamStatusLabel } from "@/lib/uiLabels";
 
-function formatAge(seconds: number | null | undefined): string {
-  if (seconds == null) return "tidak diketahui";
-  if (seconds < 60) return `${seconds}d lalu`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m lalu`;
-  return `${Math.floor(seconds / 3600)}j lalu`;
-}
 
 function formatTimestampAge(isoTs: string): string {
   const diffMs = Date.now() - new Date(isoTs).getTime();
@@ -39,14 +33,14 @@ interface StatusStripProps {
 }
 
 export function StatusStrip({ health, healthLoading, lightning, lightningLoading }: StatusStripProps) {
-  const nodeStatus: NodeStatus = health?.node_status ?? "no_data";
+  const nodeStatus: NodeStatus = health?.station_status ?? "no_data";
   const lightningStatus = lightning?.minute?.status ?? null;
   const realtimeUnavailable = isRealtimeUnavailable(nodeStatus);
   const dotStatus = realtimeUnavailable ? "offline" : lightningToDotStatus(lightningStatus);
   const snapshotDetail = realtimeSnapshotDetail(nodeStatus, lightning?.minute?.minute_utc);
 
-  const weatherStream = health?.streams?.find(
-    (s) => s.table === "weather_minute_summary",
+  const weatherStream = health?.freshness?.find(
+    (s) => s.stream === "weather",
   );
   const weatherStreamStatus = weatherStream?.status ?? "no_data";
 
@@ -69,9 +63,9 @@ export function StatusStrip({ health, healthLoading, lightning, lightningLoading
             ) : (
               <Badge variant={nodeStatus} label={nodeStatusLabel(nodeStatus)} />
             )}
-            {health?.sync_lag_seconds != null && (
+            {health?.updated_at_utc != null && (
               <span className="truncate text-[11px] text-[var(--color-text-muted)]">
-                {formatAge(health.sync_lag_seconds)}
+                {formatTimestampAge(health.updated_at_utc)}
               </span>
             )}
           </div>
@@ -94,9 +88,9 @@ export function StatusStrip({ health, healthLoading, lightning, lightningLoading
               ) : (
                 <Badge variant={weatherStreamStatus} label={streamStatusLabel(weatherStreamStatus)} />
               )}
-              {weatherStream?.last_ts_utc != null && (
+              {weatherStream?.updated_at_utc != null && (
                 <span className="truncate text-[11px] text-[var(--color-text-muted)]">
-                  {formatTimestampAge(weatherStream.last_ts_utc)}
+                  {formatTimestampAge(weatherStream.updated_at_utc)}
                 </span>
               )}
             </div>

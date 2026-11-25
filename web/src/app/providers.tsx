@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { shouldRetryApiRequest } from "@/lib/api";
 import { useState, type ReactNode } from "react";
 
 interface ProvidersProps {
@@ -13,7 +14,7 @@ export function Providers({ children }: ProvidersProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            retry: 1,
+            retry: shouldRetryApiRequest,
             refetchOnWindowFocus: false,
           },
         },

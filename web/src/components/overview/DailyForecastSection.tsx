@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/common/Card";
+import { QueryErrorState } from "@/components/common/QueryState";
 import { useDailyForecast } from "@/hooks/useDailyForecast";
 import type { DailyForecastItem, DailyForecastLevel } from "@/lib/api";
 
@@ -67,9 +68,11 @@ export function DailyForecastSection({ node }: { node?: string }) {
           ))}
         </div>
       ) : query.isError ? (
-        <Card className="text-sm text-[var(--color-text-muted)]">
-          Prediksi hari ini belum dapat dimuat. Data cuaca saat ini tetap dapat dipantau di bawah.
-        </Card>
+        <QueryErrorState
+          error={query.error}
+          onRetry={() => query.refetch()}
+          label="Prediksi hari ini"
+        />
       ) : query.data?.status !== "available" ? (
         <Card className="text-sm text-[var(--color-text-muted)]">
           {query.data?.status === "stale_data"

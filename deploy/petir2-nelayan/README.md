@@ -53,6 +53,7 @@ identity. Do not put credentials in these variables or rename them to
 ```bash
 cd deploy/petir2-nelayan
 docker compose --env-file .env.example -f compose.yml config -q
+docker compose --profile cloudflare-access --env-file .env.example -f compose.yml config -q
 docker compose --env-file .env.example -f compose.yml config
 python ../../scripts/check_petir2_compose.py
 ```
@@ -67,9 +68,16 @@ Do not run `up`, `down`, or the migration profile during Phase 1.
 4. Start only Petir 2 PostgreSQL; verify its dedicated bind mount and health.
 5. Run the explicit one-shot migration:
    `docker compose --profile migration run --rm --no-deps migrate`.
-6. Start Petir 2 server and web; verify `http://127.0.0.1:3020` and its unique marker.
-7. Configure an exact Cloudflare hostname route to `http://localhost:3020` only after approval.
-8. Prove the hostname no longer returns Petir 1 before registering or syncing the Petir 2 node.
+6. While `PETIR2_ADMIN_AUTH_MODE=disabled`, start only Petir 2 server and web.
+7. When changing to `PETIR2_ADMIN_AUTH_MODE=cloudflare_access`, first set the approved
+   team domain/audience/identity allowlists, then include `--profile cloudflare-access`
+   on every render, pull, build, and `up` command. The profile starts the dedicated
+   `jwks-egress-proxy`; Cloudflare Access mode without that profile must be treated as
+   an invalid deployment because protected requests will fail closed.
+8. Verify the rendered profile includes `jwks-egress-proxy`, then verify
+   `http://127.0.0.1:3020` and its unique marker.
+9. Configure an exact Cloudflare hostname route to `http://localhost:3020` only after approval.
+10. Prove the hostname no longer returns Petir 1 before registering or syncing the Petir 2 node.
 
 The backend image starts only Uvicorn. It never runs Alembic automatically.
 

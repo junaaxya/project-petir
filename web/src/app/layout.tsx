@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -8,6 +8,12 @@ import { getSiteConfig, sitePageTitle } from "@/lib/siteConfig";
 // Site identity is deployment configuration. Force request-time evaluation so a
 // single standalone image can serve Petir 1 defaults or a named Petir 2 site.
 export const dynamic = "force-dynamic";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export function generateMetadata(): Metadata {
   const site = getSiteConfig();

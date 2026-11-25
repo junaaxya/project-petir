@@ -16,6 +16,8 @@ result = subprocess.run(
         "compose",
         "--env-file",
         str(DEPLOY / ".env.example"),
+        "--profile",
+        "cloudflare-access",
         "-f",
         str(DEPLOY / "compose.yml"),
         "config",
@@ -33,15 +35,21 @@ networks = config["networks"]
 web = services["web"]
 server = services["server"]
 postgres = services["postgres"]
+jwks_proxy = services["jwks-egress-proxy"]
 
 assert set(web["networks"]) == {"internal", "host_ingress"}, web["networks"]
-assert set(server["networks"]) == {"internal"}, server["networks"]
+assert set(server["networks"]) == {"internal", "jwks_client"}, server["networks"]
 assert set(postgres["networks"]) == {"internal"}, postgres["networks"]
+assert set(jwks_proxy["networks"]) == {"jwks_client", "jwks_egress"}, jwks_proxy["networks"]
 assert networks["internal"]["internal"] is True
+assert networks["jwks_client"]["internal"] is True
 assert not networks["host_ingress"].get("internal", False)
+assert not networks["jwks_egress"].get("internal", False)
 
 assert not server.get("ports"), server.get("ports")
 assert not postgres.get("ports"), postgres.get("ports")
+assert not jwks_proxy.get("ports"), jwks_proxy.get("ports")
+assert jwks_proxy.get("profiles") == ["cloudflare-access"]
 ports = web.get("ports", [])
 assert len(ports) == 1, ports
 port = ports[0]
@@ -61,6 +69,10 @@ assert server_environment["ADMIN_AUTH_MODE"] == "disabled"
 assert server_environment["API_DOCS_ENABLED"] == "false"
 assert server_environment["SIREN_AUDIT_ENABLED"] == "false"
 assert server_environment["SIREN_AUDIT_OPERATORS_JSON"] == "[]"
+assert server_environment["CLOUDFLARE_JWKS_PROXY_URL"] == "http://jwks-egress-proxy:3128"
+assert server_environment["HEALTH_RESPONSE_MODE"] == "public_safe"
+assert server_environment["PUBLIC_DATA_MODE"] == "public_safe"
+assert jwks_proxy["environment"]["ALLOWED_JWKS_HOST"] == ""
 assert "/healthz" in server["healthcheck"]["test"][-1]
 
 print("Petir 2 Compose isolation, branding, and access-control contract: OK")

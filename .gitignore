@@ -20,6 +20,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+server/uv.lock
 
 # --- Node / Next.js ---
 node_modules/
@@ -28,6 +29,8 @@ web/.next-stale-*/
 web/out/
 .turbo/
 *.tsbuildinfo
+web/playwright-report/
+web/test-results/
 
 # --- Edge DB copies / backups (data, jangan commit) ---
 *.db

@@ -75,15 +75,19 @@ def test_health_latest_separates_node_and_stream_freshness(client, session, seed
     r = client.get("/api/health/latest")
     assert r.status_code == 200
     body = r.json()
-    streams = {stream["table"]: stream for stream in body["streams"]}
+    streams = {stream["stream"]: stream for stream in body["freshness"]}
 
-    assert body["node_status"] == "stale"
-    assert streams["weather_minute_summary"]["kind"] == "cadence"
-    assert streams["weather_minute_summary"]["status"] == "stale"
-    assert streams["lightning_minute_summary"]["kind"] == "event"
-    assert streams["lightning_minute_summary"]["status"] == "idle"
-    assert streams["system_events"]["kind"] == "event"
-    assert streams["system_events"]["status"] == "idle"
+    assert body["station_status"] == "stale"
+    assert streams["weather"]["status"] == "stale"
+    assert streams["lightning"]["status"] == "idle"
+    assert "system_events" not in streams
+    assert set(body) == {
+        "station_status",
+        "data_availability",
+        "updated_at_utc",
+        "freshness",
+        "disruption",
+    }
 
 
 def test_event_streams_become_unknown_when_node_is_offline(client, session, seeded_node):
@@ -115,15 +119,18 @@ def test_event_streams_become_unknown_when_node_is_offline(client, session, seed
     r = client.get("/api/health/latest")
     assert r.status_code == 200
     body = r.json()
-    streams = {stream["table"]: stream for stream in body["streams"]}
+    streams = {stream["stream"]: stream for stream in body["freshness"]}
 
-    assert body["node_status"] == "offline"
-    assert streams["lightning_minute_summary"]["status"] == "unknown"
-    assert streams["lightning_minute_summary"]["status"] != "offline"
+    assert body["station_status"] == "offline"
+    assert streams["lightning"]["status"] == "unknown"
+    assert streams["lightning"]["status"] != "offline"
+    assert body["disruption"] == {"active": True, "level": "outage"}
 
 
-def test_health_latest_wan_failover_fallback_when_snapshot_missing(client):
-    r = client.get("/api/health/latest")
+def test_health_diagnostics_wan_failover_fallback_when_snapshot_missing(client, monkeypatch):
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.operator_api_key", "operator-secret")
+    r = client.get("/api/health/diagnostics", headers={"X-API-Key": "operator-secret"})
     assert r.status_code == 200
     body = r.json()
     wan = body["wan_failover"]
@@ -134,7 +141,7 @@ def test_health_latest_wan_failover_fallback_when_snapshot_missing(client):
     assert wan["recent_events"] == []
 
 
-def test_health_latest_reads_wan_failover_snapshot(client, monkeypatch, tmp_path):
+def test_health_diagnostics_reads_wan_failover_snapshot(client, monkeypatch, tmp_path):
     node_dir = tmp_path / NODE_ID
     node_dir.mkdir(parents=True)
     (node_dir / "wan_failover_status.json").write_text(
@@ -200,8 +207,10 @@ def test_health_latest_reads_wan_failover_snapshot(client, monkeypatch, tmp_path
     )
 
     monkeypatch.setattr("app.query.health.settings.wan_failover_snapshot_dir", str(tmp_path))
+    monkeypatch.setattr("app.settings.settings.admin_auth_mode", "api_key")
+    monkeypatch.setattr("app.settings.settings.operator_api_key", "operator-secret")
 
-    r = client.get("/api/health/latest")
+    r = client.get("/api/health/diagnostics", headers={"X-API-Key": "operator-secret"})
     assert r.status_code == 200
     body = r.json()
     wan = body["wan_failover"]
@@ -214,3 +223,46 @@ def test_health_latest_reads_wan_failover_snapshot(client, monkeypatch, tmp_path
     assert wan["checks"]["eth"]["ok"] is True
     assert wan["checks"]["wifi"]["route_metric"] == 600
     assert wan["recent_events"][0]["event_type"] == "recover_to_ethernet"
+
+
+def test_public_health_rejects_disabled_node(client, session):
+    from app.models.registry import EdgeNode
+
+    node = session.get(EdgeNode, NODE_ID)
+    assert node is not None
+    node.enabled = False
+    session.commit()
+
+    response = client.get("/api/health/latest", params={"node": NODE_ID})
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NODE_NOT_FOUND"
+
+
+def test_public_health_rejects_unknown_and_traversal_node_ids(client):
+    for node in ("missing-node", "../../etc"):
+        r = client.get("/api/health/latest", params={"node": node})
+        assert r.status_code == 404
+        assert r.json()["error"]["code"] == "NODE_NOT_FOUND"
+
+
+def test_public_health_never_serializes_network_diagnostics(client):
+    body = client.get("/api/health/latest").json()
+    serialized = json.dumps(body).lower()
+    for forbidden in (
+        "wan_failover",
+        "gateway",
+        "ipv4",
+        "interface",
+        "default_routes",
+        "raw",
+        "system_events",
+    ):
+        assert forbidden not in serialized
+
+
+def test_legacy_health_contract_requires_explicit_mode(client, monkeypatch):
+    monkeypatch.setattr("app.query.health.settings.health_response_mode", "legacy_full")
+    body = client.get("/api/health/latest").json()
+    assert "node_status" in body
+    assert "streams" in body
+    assert "wan_failover" in body
