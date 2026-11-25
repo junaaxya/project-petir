@@ -18,6 +18,7 @@ from app.query.auth import verify_dashboard_user
 from app.query.downsample import bucket_expr, parse_range
 from app.schemas.query import HistoryMeta, HistoryResponse, LatestResponse
 from app.services.daily_forecast import calculate_daily_forecast, forecast_ranges_wib
+from app.settings import settings
 
 router = APIRouter(prefix="/api/weather", tags=["weather"], dependencies=[Depends(verify_dashboard_user)])
 
@@ -45,6 +46,12 @@ def _iso(dt) -> str:
     return dt.isoformat()
 
 
+def _public_sensor_metadata(source: Optional[str], device: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    if settings.public_data_mode == "public_safe":
+        return ("weather_station", "weather_sensor")
+    return source, device
+
+
 @router.get("/latest", response_model=LatestResponse)
 def weather_latest(
     node: Optional[str] = Query(default=None),
@@ -67,10 +74,11 @@ def weather_latest(
 
 
 def _sample_to_latest_dict(row: WeatherSample) -> dict[str, Any]:
+    source, device = _public_sensor_metadata(row.source, row.device)
     return {
         "minute_utc": row.ts_pi_utc.isoformat() if row.ts_pi_utc else None,
-        "source": row.source,
-        "device": row.device,
+        "source": source,
+        "device": device,
         "status": None,
         "degraded": None,
         "sample_count": 1,
@@ -88,10 +96,11 @@ def _sample_to_latest_dict(row: WeatherSample) -> dict[str, Any]:
 
 
 def _summary_to_dict(row: WeatherMinuteSummary) -> dict[str, Any]:
+    source, device = _public_sensor_metadata(row.source, row.device)
     return {
         "minute_utc": row.minute_utc.isoformat() if row.minute_utc else None,
-        "source": row.source,
-        "device": row.device,
+        "source": source,
+        "device": device,
         "status": row.status,
         "degraded": row.degraded,
         "sample_count": row.sample_count,
@@ -255,24 +264,30 @@ def _raw_series(session, from_dt, to_dt, node, limit: int) -> list[dict[str, Any
     rows.reverse()
     out = []
     for row in rows:
-        out.append(
-            {
-                "bucket": row.ts_pi_utc.isoformat() if row.ts_pi_utc else None,
-                "edge_id": row.edge_id,
-                "source": row.source,
-                "device": row.device,
-                "sensor": row.sensor,
-                "temperature_c": row.temperature_c,
-                "humidity_pct": row.humidity_pct,
-                "pressure_hpa": row.pressure_hpa,
-                "illuminance_lux": row.illuminance_lux,
-                "rain_mm": row.rain_mm,
-                "wind_speed_ms": row.wind_speed_ms,
-                "wind_dir_code": row.wind_dir_code,
-                "wind_dir_deg": row.wind_dir_deg,
-                "created_at_utc": row.created_at_utc.isoformat() if row.created_at_utc else None,
-            }
-        )
+        item = {
+            "bucket": row.ts_pi_utc.isoformat() if row.ts_pi_utc else None,
+            "temperature_c": row.temperature_c,
+            "humidity_pct": row.humidity_pct,
+            "pressure_hpa": row.pressure_hpa,
+            "illuminance_lux": row.illuminance_lux,
+            "rain_mm": row.rain_mm,
+            "wind_speed_ms": row.wind_speed_ms,
+            "wind_dir_code": row.wind_dir_code,
+            "wind_dir_deg": row.wind_dir_deg,
+        }
+        if settings.public_data_mode == "legacy_full":
+            item.update(
+                {
+                    "edge_id": row.edge_id,
+                    "source": row.source,
+                    "device": row.device,
+                    "sensor": row.sensor,
+                    "created_at_utc": row.created_at_utc.isoformat()
+                    if row.created_at_utc
+                    else None,
+                }
+            )
+        out.append(item)
     return out
 
 
@@ -470,7 +485,7 @@ def weather_quality_events(
                 "minute_utc": row.minute_utc.isoformat() if row.minute_utc else None,
                 "quality_status": row.quality_status,
                 "reason_codes": row.reason_codes,
-                "message": row.message,
+                "message": row.message if settings.public_data_mode == "legacy_full" else None,
                 "created_at_utc": row.created_at_utc.isoformat() if row.created_at_utc else None,
             }
         )

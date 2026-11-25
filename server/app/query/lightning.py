@@ -17,15 +17,18 @@ from app.models.lightning import LightningEvent, LightningMinuteSummary
 from app.query.auth import verify_dashboard_user
 from app.query.downsample import bucket_expr, parse_range
 from app.schemas.query import HistoryMeta, HistoryResponse, LatestResponse
+from app.settings import settings
 
 router = APIRouter(prefix="/api/lightning", tags=["lightning"], dependencies=[Depends(verify_dashboard_user)])
 
 
 def _summary_to_dict(row: LightningMinuteSummary) -> dict[str, Any]:
+    source = "lightning_station" if settings.public_data_mode == "public_safe" else row.source
+    device = "lightning_sensor" if settings.public_data_mode == "public_safe" else row.device
     return {
         "minute_utc": row.minute_utc.isoformat() if row.minute_utc else None,
-        "source": row.source,
-        "device": row.device,
+        "source": source,
+        "device": device,
         "status": row.status,
         "lightning_count": row.lightning_count,
         "disturber_count": row.disturber_count,
@@ -38,6 +41,8 @@ def _summary_to_dict(row: LightningMinuteSummary) -> dict[str, Any]:
 
 
 def _event_to_dict(row: LightningEvent) -> dict[str, Any]:
+    source = "lightning_station" if settings.public_data_mode == "public_safe" else row.source
+    device = "lightning_sensor" if settings.public_data_mode == "public_safe" else row.device
     return {
         "edge_id": row.edge_id,
         "ts_pi_utc": row.ts_pi_utc.isoformat() if row.ts_pi_utc else None,
@@ -45,8 +50,8 @@ def _event_to_dict(row: LightningEvent) -> dict[str, Any]:
         "distance_km": row.distance_km,
         "energy_raw": row.energy_raw,
         "noise_level": row.noise_level,
-        "source": row.source,
-        "device": row.device,
+        "source": source,
+        "device": device,
     }
 
 

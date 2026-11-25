@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getHealthLatest } from "@/lib/api";
-import type { HealthLatestResponse } from "@/lib/types";
+import { getHealthDiagnostics, getHealthLatest } from "@/lib/api";
+import type { HealthDiagnosticsResponse, HealthLatestResponse } from "@/lib/types";
 
 export function useHealth(node?: string) {
   return useQuery<HealthLatestResponse>({
@@ -10,5 +10,15 @@ export function useHealth(node?: string) {
     queryFn: () => getHealthLatest(node),
     refetchInterval: 10_000,
     staleTime: 8_000,
+  });
+}
+
+export function useHealthDiagnostics(node?: string, enabled = true) {
+  return useQuery<HealthDiagnosticsResponse>({
+    queryKey: ["health", "diagnostics", node ?? null],
+    queryFn: () => getHealthDiagnostics(node),
+    refetchInterval: 15_000,
+    staleTime: 12_000,
+    enabled,
   });
 }

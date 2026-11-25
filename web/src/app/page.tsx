@@ -13,6 +13,8 @@ import { NodeSelect } from "@/components/common/NodeSelect";
 import { formatRelativeFromIso } from "@/lib/realtime";
 import type { NodeStatus } from "@/lib/types";
 import { LightningEventsTable } from "@/components/lightning/LightningEventsTable";
+import { EmptyState } from "@/components/common/EmptyState";
+import { QueryErrorState } from "@/components/common/QueryState";
 
 function formatWeatherSource(val?: string | null): string {
   if (!val) return "—";
@@ -92,11 +94,15 @@ export default function OverviewPage() {
 
   const nodeParam = node || undefined;
 
-  const { data: latest, isLoading: latestLoading } = useWeatherLatest(nodeParam);
-  const { data: health, isLoading: healthLoading } = useHealth(nodeParam);
-  const { data: lightning, isLoading: lightningLoading } = useLightningLatest(nodeParam);
-  const { data: latestEvents, isLoading: latestEventsLoading } = useLatestLightningEvents(nodeParam);
-  const weatherFreshness = getWeatherFreshness(health?.node_status, latest?.minute?.minute_utc);
+  const weatherQuery = useWeatherLatest(nodeParam);
+  const healthQuery = useHealth(nodeParam);
+  const lightningQuery = useLightningLatest(nodeParam);
+  const eventsQuery = useLatestLightningEvents(nodeParam);
+  const latest = weatherQuery.data;
+  const health = healthQuery.data;
+  const lightning = lightningQuery.data;
+  const latestEvents = eventsQuery.data;
+  const weatherFreshness = getWeatherFreshness(health?.station_status, latest?.minute?.minute_utc);
 
   return (
     <div className="flex flex-col gap-5 sm:gap-6">
@@ -113,21 +119,50 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      <StatusStrip health={health} healthLoading={healthLoading} lightning={lightning} lightningLoading={lightningLoading} />
+      {healthQuery.isError ? (
+        <QueryErrorState error={healthQuery.error} onRetry={() => healthQuery.refetch()} label="Status stasiun" />
+      ) : (
+        <StatusStrip
+          health={health}
+          healthLoading={healthQuery.isLoading}
+          lightning={lightning}
+          lightningLoading={lightningQuery.isLoading}
+        />
+      )}
 
       <DailyForecastSection node={nodeParam} />
 
-      <LightningOverviewSection lightning={lightning} lightningLoading={lightningLoading} nodeStatus={health?.node_status} />
+      {lightningQuery.isError ? (
+        <QueryErrorState error={lightningQuery.error} onRetry={() => lightningQuery.refetch()} label="Status petir" />
+      ) : (
+        <LightningOverviewSection
+          lightning={lightning}
+          lightningLoading={lightningQuery.isLoading}
+          nodeStatus={health?.station_status}
+        />
+      )}
 
-      <LightningEventsTable
-        items={latestEvents?.items ?? []}
-        loading={latestEventsLoading}
-        pagination={null}
-        title="Kejadian Terbaru"
-        detail="Event terbaru sensor, tidak dibatasi filter rentang waktu halaman Petir"
-      />
+      {eventsQuery.isError ? (
+        <QueryErrorState error={eventsQuery.error} onRetry={() => eventsQuery.refetch()} label="Kejadian petir" />
+      ) : (
+        <LightningEventsTable
+          items={latestEvents?.items ?? []}
+          loading={eventsQuery.isLoading}
+          pagination={null}
+          title="Kejadian Terbaru"
+          detail="Event terbaru sensor, tidak dibatasi filter rentang waktu halaman Petir"
+        />
+      )}
 
-      <section className="flex flex-col gap-4">
+      {weatherQuery.isError ? (
+        <QueryErrorState error={weatherQuery.error} onRetry={() => weatherQuery.refetch()} label="Cuaca saat ini" />
+      ) : !weatherQuery.isLoading && !latest?.minute ? (
+        <EmptyState
+          message="Data cuaca belum tersedia"
+          detail="Status aman tidak ditampilkan sampai data sensor yang valid tersedia."
+        />
+      ) : (
+        <section className="flex flex-col gap-4">
         <div className="space-y-2">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
@@ -141,7 +176,7 @@ export default function OverviewPage() {
               Data sensor terbaru dari perangkat cuaca. Jika sensor offline, data realtime akan ditandai dengan jelas.
             </p>
           </div>
-          {!latestLoading && latest?.minute ? (
+          {!weatherQuery.isLoading && latest?.minute ? (
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs text-[var(--color-text-muted)]">
               <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
                 <span><span className="font-medium text-[var(--color-text)]">Mode data:</span> Data sensor terbaru</span>
@@ -154,8 +189,9 @@ export default function OverviewPage() {
             </div>
           ) : null}
         </div>
-        <OverviewGrid minute={latest?.minute} loading={latestLoading} nodeStatus={health?.node_status} />
-      </section>
+        <OverviewGrid minute={latest?.minute} loading={weatherQuery.isLoading} nodeStatus={health?.station_status} />
+        </section>
+      )}
 
     </div>
   );

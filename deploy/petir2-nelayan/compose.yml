@@ -64,6 +64,9 @@ services:
       CLOUDFLARE_ACCESS_AUDIENCE: ${PETIR2_CLOUDFLARE_ACCESS_AUDIENCE:-}
       CLOUDFLARE_ACCESS_ADMIN_EMAILS: ${PETIR2_CLOUDFLARE_ACCESS_ADMIN_EMAILS:-}
       CLOUDFLARE_ACCESS_OPERATOR_EMAILS: ${PETIR2_CLOUDFLARE_ACCESS_OPERATOR_EMAILS:-}
+      CLOUDFLARE_JWKS_PROXY_URL: http://jwks-egress-proxy:3128
+      HEALTH_RESPONSE_MODE: "public_safe"
+      PUBLIC_DATA_MODE: "public_safe"
       API_DOCS_ENABLED: "false"
       SIREN_AUDIT_ENABLED: "false"
       SIREN_AUDIT_OPERATORS_JSON: ${PETIR2_SIREN_AUDIT_OPERATORS_JSON:-[]}
@@ -88,6 +91,29 @@ services:
       - no-new-privileges:true
     networks:
       - internal
+      - jwks_client
+
+  jwks-egress-proxy:
+    profiles: ["cloudflare-access"]
+    image: petir2-jwks-egress-proxy:${PETIR2_IMAGE_TAG:?set immutable PETIR2_IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: deploy/jwks-egress-proxy/Dockerfile
+      labels:
+        org.opencontainers.image.revision: ${PETIR2_GIT_SHA:?set PETIR2_GIT_SHA}
+    restart: unless-stopped
+    environment:
+      ALLOWED_JWKS_HOST: ${PETIR2_CLOUDFLARE_ACCESS_TEAM_DOMAIN:-}
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /run:size=1m,mode=0755
+      - /var/spool/squid:size=16m,uid=13,gid=13,mode=0750
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - jwks_client
+      - jwks_egress
 
   web:
     image: petir2-web:${PETIR2_IMAGE_TAG:?set immutable PETIR2_IMAGE_TAG}
@@ -127,4 +153,9 @@ networks:
   internal:
     internal: true
   host_ingress:
+    driver: bridge
+  jwks_client:
+    driver: bridge
+    internal: true
+  jwks_egress:
     driver: bridge

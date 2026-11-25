@@ -8,6 +8,7 @@ import { HistoryFilterBar } from "@/components/common/HistoryFilterBar";
 import { QualityEventsTable } from "@/components/quality/QualityEventsTable";
 import { QualityDistribution } from "@/components/quality/QualityDistribution";
 import { ReasonCodesBreakdown } from "@/components/quality/ReasonCodesBreakdown";
+import { QueryErrorState } from "@/components/common/QueryState";
 import {
   dateRangeToApiRange,
   normalizeDateRange,
@@ -59,7 +60,7 @@ function QualityPageContent() {
     setQuery({ range: preset, from_date: null, to_date: null, page: "1" });
   };
 
-  const { data, isLoading } = useQualityEvents({
+  const query = useQualityEvents({
     from,
     to,
     node: nodeParam,
@@ -67,6 +68,7 @@ function QualityPageContent() {
     page,
     page_size: 20,
   });
+  const { data, isLoading } = query;
 
   const items = data?.items ?? [];
   const summary = data?.summary ?? null;
@@ -91,7 +93,11 @@ function QualityPageContent() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {query.isError && (
+        <QueryErrorState error={query.error} onRetry={() => query.refetch()} label="Kualitas data" />
+      )}
+
+      <div className={`${query.isError ? "hidden" : "grid"} grid-cols-1 gap-4 sm:grid-cols-2`}>
         <QualityDistribution items={items} summary={summary} loading={isLoading} />
         <ReasonCodesBreakdown
           items={items}
@@ -100,6 +106,7 @@ function QualityPageContent() {
         />
       </div>
 
+      <div className={query.isError ? "hidden" : "contents"}>
       <QualityEventsTable
         items={items}
         loading={isLoading}
@@ -108,6 +115,7 @@ function QualityPageContent() {
         pagination={data?.meta ?? null}
         onPageChange={(nextPage) => setQuery({ page: String(nextPage) })}
       />
+      </div>
     </div>
   );
 }

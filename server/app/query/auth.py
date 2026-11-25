@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import hmac
+import json
 import re
+import ssl
+import urllib.request
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Literal
 
 import jwt
 from fastapi import Header, HTTPException
-from jwt import PyJWKClient
+from jwt import PyJWKClient, PyJWKClientConnectionError
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 
 from app.settings import settings
 
@@ -45,9 +50,58 @@ def verify_dashboard_user(
     return x_api_key
 
 
+class RestrictedProxyJWKClient(PyJWKClient):
+    def __init__(self, uri: str, proxy_url: str) -> None:
+        super().__init__(uri, cache_keys=False, lifespan=300, timeout=5)
+        self.proxy_url = proxy_url
+
+    def fetch_data(self) -> Any:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"https": self.proxy_url}),
+            urllib.request.HTTPSHandler(context=self.ssl_context or ssl.create_default_context()),
+        )
+        try:
+            request = urllib.request.Request(url=self.uri, headers=self.headers)
+            with opener.open(request, timeout=self.timeout) as response:
+                jwk_set = json.load(response)
+        except (URLError, TimeoutError) as exc:
+            if isinstance(exc, HTTPError):
+                exc.close()
+            raise PyJWKClientConnectionError(
+                f'Fail to fetch data from the configured JWKS proxy, err: "{exc}"'
+            ) from exc
+        if self.jwk_set_cache is not None:
+            self.jwk_set_cache.put(jwk_set)
+        return jwk_set
+
+
+def _cloudflare_jwks_proxy_url() -> str:
+    value = settings.cloudflare_jwks_proxy_url.strip()
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "http"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise _error(
+            503,
+            "ACCESS_CONTROL_CONFIG_INVALID",
+            "a dedicated HTTP JWKS proxy must be configured",
+        )
+    return value.rstrip("/")
+
+
 @lru_cache(maxsize=8)
+def _cached_cloudflare_jwk_client(certs_url: str, proxy_url: str) -> PyJWKClient:
+    return RestrictedProxyJWKClient(certs_url, proxy_url)
+
+
 def _get_cloudflare_jwk_client(certs_url: str) -> PyJWKClient:
-    return PyJWKClient(certs_url, cache_keys=True, lifespan=300)
+    return _cached_cloudflare_jwk_client(certs_url, _cloudflare_jwks_proxy_url())
 
 
 def _cloudflare_issuer() -> str:
@@ -84,6 +138,12 @@ def _decode_cloudflare_access_token(token: str) -> dict[str, Any]:
         )
     except HTTPException:
         raise
+    except PyJWKClientConnectionError as exc:
+        raise _error(
+            503,
+            "ACCESS_JWKS_UNAVAILABLE",
+            "Cloudflare Access signing keys are temporarily unavailable",
+        ) from exc
     except (jwt.PyJWTError, ValueError, OSError) as exc:
         raise _error(401, "UNAUTHORIZED", "invalid Cloudflare Access token") from exc
     if not isinstance(claims, dict):

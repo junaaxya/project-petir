@@ -1,6 +1,6 @@
 export function ResearchFooter() {
   return (
-    <footer className="border-t border-[var(--color-border)] bg-[var(--color-surface)]/35 pb-20 sm:pb-0">
+    <footer className="border-t border-[var(--color-border)] bg-[var(--color-surface)]/35 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-0">
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-1.5 px-4 py-5 text-center text-xs leading-relaxed text-[var(--color-text-muted)] sm:py-6">
         <p className="font-medium text-[var(--color-text)]">
           © 2026 PetirDashboard · Universitas Muhammadiyah Bangka Belitung

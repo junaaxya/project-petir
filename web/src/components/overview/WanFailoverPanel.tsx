@@ -3,11 +3,11 @@
 import { Card } from "@/components/common/Card";
 import { Badge } from "@/components/common/Badge";
 import { EmptyState } from "@/components/common/EmptyState";
-import type { HealthLatestResponse, WanFailoverEvent, WanFailoverHealthCheck, WanFailoverStatus } from "@/lib/types";
+import type { WanFailoverEvent, WanFailoverHealthCheck, WanFailoverStatus } from "@/lib/types";
 import { formatRelativeFromIso } from "@/lib/realtime";
 
 interface WanFailoverPanelProps {
-  health: HealthLatestResponse | undefined;
+  status: WanFailoverStatus | undefined;
   healthLoading: boolean;
 }
 
@@ -163,8 +163,7 @@ function normalizeBadge(status: WanFailoverStatus | null | undefined): WanBadge 
   return "unknown";
 }
 
-export function WanFailoverPanel({ health, healthLoading }: WanFailoverPanelProps) {
-  const status = health?.wan_failover ?? null;
+export function WanFailoverPanel({ status, healthLoading }: WanFailoverPanelProps) {
   const badge = normalizeBadge(status);
   const statusAvailable = !!status?.available;
 

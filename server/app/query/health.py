@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,7 @@ from app.models.lightning import LightningMinuteSummary
 from app.models.ops import SystemEvent
 from app.models.registry import EdgeNode
 from app.models.weather import WeatherMinuteSummary
-from app.query.auth import verify_dashboard_user
+from app.query.auth import verify_dashboard_user, verify_operator_user
 from app.query.freshness import (
     NodeStatus,
     STREAM_FRESHNESS_POLICIES,
@@ -25,7 +25,11 @@ from app.query.freshness import (
     status_for_node,
 )
 from app.schemas.query import (
+    HealthDiagnosticsResponse,
     HealthResponse,
+    PublicDisruptionStatus,
+    PublicHealthResponse,
+    PublicStreamFreshness,
     StreamFreshness,
     WanFailoverChecks,
     WanFailoverDecision,
@@ -100,7 +104,11 @@ def _snapshot_dir_for_node(node_id: Optional[str]) -> Path | None:
     base = (settings.wan_failover_snapshot_dir or "").strip()
     if not base or not node_id:
         return None
-    return Path(base) / node_id
+    base_dir = Path(base).resolve()
+    candidate = (base_dir / node_id).resolve()
+    if candidate.parent != base_dir:
+        return None
+    return candidate
 
 
 def _load_json(path: Path) -> Any | None:
@@ -239,21 +247,28 @@ def _load_wan_failover(node_id: Optional[str]) -> WanFailoverStatus:
     )
 
 
-@router.get("/latest", response_model=HealthResponse)
-def health_latest(
-    node: Optional[str] = Query(default=None),
-    session: Session = Depends(get_session),
-) -> HealthResponse:
-    now = datetime.now(timezone.utc)
-
-    node_row: Optional[EdgeNode] = None
+def _node_row(session: Session, node: Optional[str]) -> Optional[EdgeNode]:
     if node:
-        node_row = session.get(EdgeNode, node)
-    else:
-        node_row = session.execute(
-            select(EdgeNode).order_by(EdgeNode.last_seen_utc.desc().nullslast()).limit(1)
-        ).scalars().first()
+        row = session.get(EdgeNode, node)
+        if row is None or not row.enabled:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "NODE_NOT_FOUND", "message": "registered node was not found"},
+            )
+        return row
+    return session.execute(
+        select(EdgeNode)
+        .where(EdgeNode.enabled.is_(True))
+        .order_by(EdgeNode.last_seen_utc.desc().nullslast())
+        .limit(1)
+    ).scalars().first()
 
+
+def _health_state(
+    node: Optional[str], session: Session
+) -> tuple[Optional[str], NodeStatus, Optional[datetime], Optional[float], list[StreamFreshness]]:
+    now = datetime.now(timezone.utc)
+    node_row = _node_row(session, node)
     last_seen = node_row.last_seen_utc if node_row else None
     sync_lag = age_seconds(last_seen, now)
     node_status = status_for_node(sync_lag) if node_row else "no_data"
@@ -261,8 +276,8 @@ def health_latest(
     streams: list[StreamFreshness] = []
     for name, model, ts_col, policy in _STREAMS:
         stmt = select(func.max(ts_col))
-        if node:
-            stmt = stmt.where(model.node_id == node)
+        if node_row:
+            stmt = stmt.where(model.node_id == node_row.node_id)
         last_ts = session.execute(stmt).scalar_one_or_none()
         age = age_seconds(last_ts, now)
         streams.append(
@@ -274,13 +289,93 @@ def health_latest(
                 status=_stream_status(age, policy, node_status),
             )
         )
+    return node_row.node_id if node_row else None, node_status, last_seen, sync_lag, streams
 
-    effective_node_id = node_row.node_id if node_row else node
+
+def _public_health(
+    node_id: Optional[str],
+    node_status: NodeStatus,
+    last_seen: Optional[datetime],
+    streams: list[StreamFreshness],
+) -> PublicHealthResponse:
+    public_names = {
+        "weather_minute_summary": "weather",
+        "lightning_minute_summary": "lightning",
+    }
+    freshness = [
+        PublicStreamFreshness(
+            stream=public_names[item.table],
+            updated_at_utc=item.last_ts_utc,
+            age_seconds=item.age_seconds,
+            status=item.status,
+        )
+        for item in streams
+        if item.table in public_names
+    ]
+    timestamps = [
+        datetime.fromisoformat(item.updated_at_utc)
+        for item in freshness
+        if item.updated_at_utc
+    ]
+    if last_seen:
+        timestamps.append(last_seen)
+    updated_at = max(timestamps).isoformat() if timestamps else None
+    statuses = {item.status for item in freshness}
+    if updated_at is None:
+        availability = "unavailable"
+    elif node_status == "offline" or statuses <= {"no_data", "unknown"}:
+        availability = "unavailable"
+    elif statuses & {"stale", "unknown", "no_data"}:
+        availability = "degraded"
+    else:
+        availability = "available"
+    if node_status == "offline":
+        disruption = PublicDisruptionStatus(active=True, level="outage")
+    elif availability == "degraded" or node_status == "stale":
+        disruption = PublicDisruptionStatus(active=True, level="warning")
+    elif availability == "unavailable":
+        disruption = PublicDisruptionStatus(active=True, level="unavailable")
+    else:
+        disruption = PublicDisruptionStatus(active=False, level="none")
+    return PublicHealthResponse(
+        station_status=node_status,
+        data_availability=availability,
+        updated_at_utc=updated_at,
+        freshness=freshness,
+        disruption=disruption,
+    )
+
+
+@router.get("/latest", response_model=PublicHealthResponse | HealthResponse)
+def health_latest(
+    node: Optional[str] = Query(default=None),
+    session: Session = Depends(get_session),
+) -> PublicHealthResponse | HealthResponse:
+    effective_node_id, node_status, last_seen, sync_lag, streams = _health_state(node, session)
+    if settings.health_response_mode == "public_safe":
+        return _public_health(effective_node_id, node_status, last_seen, streams)
     return HealthResponse(
         node_id=effective_node_id,
         node_status=node_status,
         last_seen_utc=last_seen.isoformat() if last_seen else None,
         sync_lag_seconds=sync_lag,
         streams=streams,
+        wan_failover=_load_wan_failover(effective_node_id),
+    )
+
+
+@router.get(
+    "/diagnostics",
+    response_model=HealthDiagnosticsResponse,
+    dependencies=[Depends(verify_operator_user)],
+)
+def health_diagnostics(
+    node: Optional[str] = Query(default=None),
+    session: Session = Depends(get_session),
+) -> HealthDiagnosticsResponse:
+    node_row = _node_row(session, node)
+    effective_node_id = node_row.node_id if node_row else None
+    return HealthDiagnosticsResponse(
+        node_id=effective_node_id,
         wan_failover=_load_wan_failover(effective_node_id),
     )

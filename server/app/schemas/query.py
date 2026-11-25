@@ -32,6 +32,26 @@ class StreamFreshness(BaseModel):
     status: str
 
 
+class PublicStreamFreshness(BaseModel):
+    stream: str
+    updated_at_utc: Optional[str]
+    age_seconds: Optional[float]
+    status: str
+
+
+class PublicDisruptionStatus(BaseModel):
+    active: bool
+    level: str
+
+
+class PublicHealthResponse(BaseModel):
+    station_status: str
+    data_availability: str
+    updated_at_utc: Optional[str]
+    freshness: list[PublicStreamFreshness]
+    disruption: PublicDisruptionStatus
+
+
 class WanFailoverHealthCheck(BaseModel):
     iface: Optional[str] = None
     connection: Optional[str] = None
@@ -101,6 +121,11 @@ class HealthResponse(BaseModel):
     sync_lag_seconds: Optional[float]
     streams: list[StreamFreshness]
     wan_failover: Optional[WanFailoverStatus] = None
+
+
+class HealthDiagnosticsResponse(BaseModel):
+    node_id: Optional[str]
+    wan_failover: WanFailoverStatus
 
 
 class ForecastLatestItem(BaseModel):

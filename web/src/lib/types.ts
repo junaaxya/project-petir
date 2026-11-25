@@ -14,7 +14,6 @@ export type {
 
 import type {
   NodeStatus as ContractNodeStatus,
-  StreamKind as ContractStreamKind,
   StreamStatus as ContractStreamStatus,
   WanFailoverPrimaryBadge as ContractWanFailoverPrimaryBadge,
   WanFailoverUplinkKind as ContractWanFailoverUplinkKind,
@@ -45,9 +44,8 @@ export interface WeatherLatestResponse {
 }
 
 export interface HealthStream {
-  table: string;
-  kind: ContractStreamKind;
-  last_ts_utc: string | null;
+  stream: string;
+  updated_at_utc: string | null;
   age_seconds: number | null;
   status: ContractStreamStatus;
 }
@@ -113,10 +111,17 @@ export interface WanFailoverStatus {
 }
 
 export interface HealthLatestResponse {
+  station_status: ContractNodeStatus;
+  data_availability: "available" | "degraded" | "unavailable";
+  updated_at_utc: string | null;
+  freshness: HealthStream[];
+  disruption: {
+    active: boolean;
+    level: "none" | "warning" | "outage" | "unavailable";
+  };
+}
+
+export interface HealthDiagnosticsResponse {
   node_id: string | null;
-  node_status: ContractNodeStatus;
-  last_seen_utc: string | null;
-  sync_lag_seconds: number | null;
-  streams: HealthStream[];
-  wan_failover?: WanFailoverStatus | null;
+  wan_failover: WanFailoverStatus;
 }

@@ -133,7 +133,7 @@ def test_latest_returns_newest_sample_when_available(client, session):
     assert r.status_code == 200
     minute = r.json()["minute"]
     assert minute is not None
-    assert minute["source"] == "arduino"
+    assert minute["source"] == "weather_station"
     assert minute["temperature_avg"] == 32.5
     assert minute["temperature_min"] == 32.5
     assert minute["temperature_max"] == 32.5
@@ -153,7 +153,7 @@ def test_latest_falls_back_to_newest_summary_when_sample_missing(client, session
     assert r.status_code == 200
     minute = r.json()["minute"]
     assert minute is not None
-    assert minute["source"] == "arduino"
+    assert minute["source"] == "weather_station"
     assert minute["temperature_avg"] == 29.0
 
 
@@ -173,6 +173,28 @@ def test_history_raw_returns_all_rows(client, session):
     assert "bucket" in first
     assert "temperature_c" in first
     assert "temperature_avg" not in first
+    assert {"edge_id", "source", "device", "sensor", "created_at_utc"}.isdisjoint(first)
+
+
+def test_history_raw_legacy_mode_preserves_metadata(client, session, monkeypatch):
+    from app.settings import settings
+
+    base = _seed_raw_samples(session, count=1)
+    monkeypatch.setattr(settings, "public_data_mode", "legacy_full")
+    response = client.get(
+        "/api/weather/history",
+        params={
+            "interval": "raw",
+            "from": (base - timedelta(minutes=1)).isoformat(),
+            "to": (base + timedelta(hours=1)).isoformat(),
+        },
+    )
+    assert response.status_code == 200
+    first = response.json()["series"][0]
+    assert first["source"] == "arduino"
+    assert first["device"] == "weather-01"
+    assert first["sensor"] == "bme280"
+    assert first["edge_id"] == 1
 
 
 def test_history_hourly_buckets(client, session):
@@ -335,7 +357,7 @@ def test_health_latest_reports_streams(client, session):
     r = client.get("/api/health/latest")
     assert r.status_code == 200
     body = r.json()
-    tables = {s["table"] for s in body["streams"]}
-    assert "weather_minute_summary" in tables
-    wms = next(s for s in body["streams"] if s["table"] == "weather_minute_summary")
-    assert wms["last_ts_utc"] is not None
+    streams = {s["stream"] for s in body["freshness"]}
+    assert "weather" in streams
+    weather = next(s for s in body["freshness"] if s["stream"] == "weather")
+    assert weather["updated_at_utc"] is not None

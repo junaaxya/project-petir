@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/common/Card";
+import { QueryErrorState } from "@/components/common/QueryState";
 import {
   ApiRequestError,
   createSirenAuditRequest,
@@ -105,7 +106,8 @@ function summarizeCommand(item?: CreateSirenAuditResponse | SirenAuditHistoryIte
 
 export function SirenAuditPanel({ node }: SirenAuditPanelProps) {
   const queryClient = useQueryClient();
-  const { data: options, isLoading: optionsLoading } = useSirenAuditOptions();
+  const optionsQuery = useSirenAuditOptions();
+  const { data: options, isLoading: optionsLoading } = optionsQuery;
   const [targetNode, setTargetNode] = useState(node ?? "");
   const [requestedBy, setRequestedBy] = useState("");
   const [durationSec, setDurationSec] = useState("2");
@@ -150,8 +152,9 @@ export function SirenAuditPanel({ node }: SirenAuditPanelProps) {
   }, [options?.nodes, targetNode]);
 
   const latestNode = targetNode || node || undefined;
-  const { data: latest, isLoading: latestLoading } = useSirenAuditLatest(latestNode);
-  const { data: history, isLoading: historyLoading } = useSirenAuditHistory({
+  const latestQuery = useSirenAuditLatest(latestNode);
+  const { data: latest, isLoading: latestLoading } = latestQuery;
+  const historyQuery = useSirenAuditHistory({
     node: filterNode || undefined,
     status: filterStatus || undefined,
     from: filterFrom ? new Date(filterFrom).toISOString() : undefined,
@@ -159,6 +162,7 @@ export function SirenAuditPanel({ node }: SirenAuditPanelProps) {
     page,
     page_size: 5,
   });
+  const { data: history, isLoading: historyLoading } = historyQuery;
 
   const validations = useMemo(() => {
     const duration = Number(durationSec);
@@ -214,6 +218,17 @@ export function SirenAuditPanel({ node }: SirenAuditPanelProps) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  const failedQuery = [optionsQuery, latestQuery, historyQuery].find((query) => query.isError);
+  if (failedQuery?.isError) {
+    return (
+      <QueryErrorState
+        error={failedQuery.error}
+        onRetry={() => failedQuery.refetch()}
+        label="Audit sirine"
+      />
+    );
   }
 
   return (

@@ -85,7 +85,7 @@ def test_lightning_latest_returns_newest(client, session):
     assert r.status_code == 200
     minute = r.json()["minute"]
     assert minute is not None
-    assert minute["device"] == "as3935"
+    assert minute["device"] == "lightning_sensor"
 
 
 def test_lightning_history_empty(client):

@@ -12,6 +12,7 @@ import { WindRoseChart } from "@/components/weather/WindRoseChart";
 import { WeatherMetricChart } from "@/components/weather/WeatherMetricChart";
 import { WeatherDataTable } from "@/components/weather/WeatherDataTable";
 import { DeferredChart } from "@/components/weather/DeferredChart";
+import { QueryErrorState } from "@/components/common/QueryState";
 import type { WeatherHistoryParams } from "@/lib/api";
 import { getHumidity, getIlluminance, getPressure, getWindSpeed } from "@/lib/chart-fields";
 import { formatChartBuckets, formatDataCoverage } from "@/lib/chartBuckets";
@@ -99,7 +100,8 @@ function WeatherPageContent() {
     [from, to, interval, nodeParam],
   );
 
-  const { data, isLoading } = useWeatherHistory(requestParams);
+  const query = useWeatherHistory(requestParams);
+  const { data, isLoading } = query;
   const series = useMemo(() => data?.series ?? [], [data?.series]);
   const bucketLabels = useMemo(() => formatChartBuckets(series), [series]);
   const dataCoverage = useMemo(() => formatDataCoverage(series), [series]);
@@ -124,6 +126,11 @@ function WeatherPageContent() {
         onToDateChange={(value) => setQuery({ range: "custom", from_date: fromDate, to_date: value })}
       />
 
+      {query.isError && (
+        <QueryErrorState error={query.error} onRetry={() => query.refetch()} label="Riwayat cuaca" />
+      )}
+
+      <div className={query.isError ? "hidden" : "contents"}>
       {(data?.meta || rawDisabled || rawLimited) && (
         <div className="flex flex-col gap-1 text-xs text-[var(--color-text-muted)]">
           {data?.meta && (
@@ -234,6 +241,7 @@ function WeatherPageContent() {
         </div>
         <WeatherDataTable series={series} loading={isLoading} rawLimited={rawLimited} />
       </section>
+      </div>
     </div>
   );
 }

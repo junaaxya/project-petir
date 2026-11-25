@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     cloudflare_access_audience: str = ""
     cloudflare_access_admin_emails: str = ""
     cloudflare_access_operator_emails: str = ""
+    cloudflare_jwks_proxy_url: str = ""
+    health_response_mode: Literal["public_safe", "legacy_full"] = "public_safe"
+    public_data_mode: Literal["public_safe", "legacy_full"] = "public_safe"
     api_docs_enabled: bool = True
     siren_audit_enabled: bool = False
     siren_audit_cooldown_seconds: int = 60

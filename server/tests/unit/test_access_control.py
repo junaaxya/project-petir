@@ -253,6 +253,120 @@ def test_cloudflare_decoder_verifies_real_rs256_signature_and_expiry(monkeypatch
     assert detail.get("code") == "UNAUTHORIZED"
 
 
+def test_cloudflare_decoder_rejects_signature_audience_and_issuer(monkeypatch):
+    from app.query import auth
+
+    monkeypatch.setattr(
+        "app.settings.settings.cloudflare_access_team_domain",
+        "team.cloudflareaccess.com",
+    )
+    monkeypatch.setattr("app.settings.settings.cloudflare_access_audience", "aud-1")
+    trusted_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    untrusted_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    monkeypatch.setattr(
+        auth,
+        "_get_cloudflare_jwk_client",
+        lambda _: SimpleNamespace(
+            get_signing_key_from_jwt=lambda token: SimpleNamespace(
+                key=trusted_key.public_key()
+            )
+        ),
+    )
+    now = datetime.now(timezone.utc)
+
+    def encoded(key, *, audience="aud-1", issuer="https://team.cloudflareaccess.com"):
+        return jwt.encode(
+            {
+                "sub": "subject-1",
+                "email": "admin@example.com",
+                "iss": issuer,
+                "aud": [audience],
+                "iat": now,
+                "exp": now + timedelta(minutes=5),
+            },
+            key,
+            algorithm="RS256",
+            headers={"kid": "test-key"},
+        )
+
+    invalid_tokens = [
+        encoded(untrusted_key),
+        encoded(trusted_key, audience="wrong-audience"),
+        encoded(trusted_key, issuer="https://wrong.cloudflareaccess.com"),
+    ]
+    for token in invalid_tokens:
+        with pytest.raises(HTTPException) as exc:
+            auth._decode_cloudflare_access_token(token)
+        assert exc.value.status_code == 401
+        assert isinstance(exc.value.detail, dict)
+        assert exc.value.detail["code"] == "UNAUTHORIZED"
+
+
+def test_cloudflare_jwks_unavailable_fails_closed(monkeypatch):
+    from jwt import PyJWKClientConnectionError
+
+    from app.query import auth
+
+    monkeypatch.setattr(
+        "app.settings.settings.cloudflare_access_team_domain",
+        "team.cloudflareaccess.com",
+    )
+    monkeypatch.setattr("app.settings.settings.cloudflare_access_audience", "aud-1")
+    monkeypatch.setattr(
+        auth,
+        "_get_cloudflare_jwk_client",
+        lambda _: SimpleNamespace(
+            get_signing_key_from_jwt=lambda token: (_ for _ in ()).throw(
+                PyJWKClientConnectionError("DNS unavailable")
+            )
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        auth._decode_cloudflare_access_token("signed-token")
+    assert exc.value.status_code == 503
+    assert isinstance(exc.value.detail, dict)
+    assert exc.value.detail["code"] == "ACCESS_JWKS_UNAVAILABLE"
+
+
+def test_cloudflare_mode_requires_dedicated_jwks_proxy(monkeypatch):
+    from app.query import auth
+
+    for value in ("", "https://proxy:3128", "http://user:pass@proxy:3128", "http://proxy:3128/path"):
+        monkeypatch.setattr("app.settings.settings.cloudflare_jwks_proxy_url", value)
+        with pytest.raises(HTTPException) as exc:
+            auth._cloudflare_jwks_proxy_url()
+        assert exc.value.status_code == 503
+        assert isinstance(exc.value.detail, dict)
+        assert exc.value.detail["code"] == "ACCESS_CONTROL_CONFIG_INVALID"
+
+    monkeypatch.setattr(
+        "app.settings.settings.cloudflare_jwks_proxy_url",
+        "http://jwks-egress-proxy:3128",
+    )
+    assert auth._cloudflare_jwks_proxy_url() == "http://jwks-egress-proxy:3128"
+
+
+def test_cloudflare_jwks_client_cache_is_scoped_by_origin_and_proxy():
+    from app.query import auth
+
+    auth._cached_cloudflare_jwk_client.cache_clear()
+    first = auth._cached_cloudflare_jwk_client(
+        "https://team.cloudflareaccess.com/cdn-cgi/access/certs",
+        "http://jwks-egress-proxy:3128",
+    )
+    repeated = auth._cached_cloudflare_jwk_client(
+        "https://team.cloudflareaccess.com/cdn-cgi/access/certs",
+        "http://jwks-egress-proxy:3128",
+    )
+    rotated_origin = auth._cached_cloudflare_jwk_client(
+        "https://other.cloudflareaccess.com/cdn-cgi/access/certs",
+        "http://jwks-egress-proxy:3128",
+    )
+    assert first is repeated
+    assert first is not rotated_origin
+
+
 def test_docs_can_be_disabled_without_breaking_healthcheck(monkeypatch):
     from fastapi.testclient import TestClient
 

@@ -13,6 +13,7 @@ import { LastEventCard } from "@/components/lightning/LastEventCard";
 import { ActivityTimeline } from "@/components/lightning/ActivityTimeline";
 import { LightningEventsTable } from "@/components/lightning/LightningEventsTable";
 import { EmptyState } from "@/components/common/EmptyState";
+import { QueryErrorState } from "@/components/common/QueryState";
 import { Card } from "@/components/common/Card";
 import { InfoTooltip } from "@/components/common/InfoTooltip";
 import { EVENT_TYPE_INFO, LIGHTNING_STATUS_INFO } from "@/components/lightning/lightningTerms";
@@ -78,26 +79,30 @@ function LightningPageContent() {
   const historyInterval =
     rangeDays <= 1 ? "1m" : rangeDays <= 7 ? "15m" : "1h";
 
-  const { data: health, isLoading: healthLoading } = useHealth(nodeParam);
-  const { data: latest, isLoading: latestLoading } = useLightningLatest(nodeParam);
-  const { data: history, isLoading: historyLoading } = useLightningHistory({
+  const healthQuery = useHealth(nodeParam);
+  const latestQuery = useLightningLatest(nodeParam);
+  const historyQuery = useLightningHistory({
     from,
     to,
     interval: historyInterval,
     node: nodeParam,
   });
-  const { data: events, isLoading: eventsLoading } = useLightningEvents({
+  const eventsQuery = useLightningEvents({
     from,
     to,
     node: nodeParam,
     page,
     page_size: 20,
   });
+  const { data: health, isLoading: healthLoading } = healthQuery;
+  const { data: latest, isLoading: latestLoading } = latestQuery;
+  const { data: history, isLoading: historyLoading } = historyQuery;
+  const { data: events, isLoading: eventsLoading } = eventsQuery;
 
 
   const status = latest?.minute?.status ?? null;
-  const realtimeUnavailable = isRealtimeUnavailable(health?.node_status);
-  const snapshotDetail = realtimeSnapshotDetail(health?.node_status, latest?.minute?.minute_utc);
+  const realtimeUnavailable = isRealtimeUnavailable(health?.station_status);
+  const snapshotDetail = realtimeSnapshotDetail(health?.station_status, latest?.minute?.minute_utc);
   const series = history?.series ?? [];
   const items = events?.items ?? [];
 
@@ -122,6 +127,14 @@ function LightningPageContent() {
         }
       />
 
+      {healthQuery.isError && (
+        <QueryErrorState error={healthQuery.error} onRetry={() => healthQuery.refetch()} label="Status stasiun" />
+      )}
+      {latestQuery.isError && (
+        <QueryErrorState error={latestQuery.error} onRetry={() => latestQuery.refetch()} label="Status petir" />
+      )}
+
+      <div className={healthQuery.isError || latestQuery.isError ? "hidden" : "contents"}>
       <Card className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
           <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -195,9 +208,17 @@ function LightningPageContent() {
         loading={latestLoading || healthLoading}
         offlineDetail={realtimeUnavailable ? snapshotDetail : undefined}
       />
+      </div>
 
-      <ActivityTimeline series={series} loading={historyLoading} interval={historyInterval} />
+      {historyQuery.isError ? (
+        <QueryErrorState error={historyQuery.error} onRetry={() => historyQuery.refetch()} label="Riwayat petir" />
+      ) : (
+        <ActivityTimeline series={series} loading={historyLoading} interval={historyInterval} />
+      )}
 
+      {eventsQuery.isError ? (
+        <QueryErrorState error={eventsQuery.error} onRetry={() => eventsQuery.refetch()} label="Rekaman petir" />
+      ) : (
       <LightningEventsTable
         items={items}
         loading={eventsLoading}
@@ -210,6 +231,7 @@ function LightningPageContent() {
         title="Rekaman Event Sensor"
         detail="Grafik aktivitas memakai ringkasan per menit; daftar ini menampilkan rekaman individual sensor pada halaman saat ini."
       />
+      )}
 
     </div>
   );

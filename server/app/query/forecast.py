@@ -12,12 +12,33 @@ from app.models.forecast import ForecastResult
 from app.models.registry import EdgeNode
 from app.query.auth import verify_dashboard_user
 from app.schemas.query import ForecastLatestItem, ForecastLatestResponse
+from app.settings import settings
 
 router = APIRouter(
     prefix="/api/forecast",
     tags=["forecast"],
     dependencies=[Depends(verify_dashboard_user)],
 )
+
+
+def _forecast_to_response(row: ForecastResult) -> ForecastLatestItem:
+    legacy = settings.public_data_mode == "legacy_full"
+    return ForecastLatestItem(
+        forecast_type=row.forecast_type,
+        computed_at_utc=row.computed_at_utc.isoformat(),
+        source_window_start_utc=_iso(row.source_window_start_utc),
+        source_window_end_utc=_iso(row.source_window_end_utc),
+        target_time_utc=_iso(row.target_time_utc),
+        horizon_minutes=row.horizon_minutes,
+        score=row.score,
+        value_numeric=row.value_numeric,
+        label=row.label,
+        confidence=row.confidence,
+        status=row.status,
+        model_name=row.model_name if legacy else None,
+        model_version=row.model_version if legacy else None,
+        details=(row.details_json or {}) if legacy else {},
+    )
 
 
 def _iso(dt: Optional[datetime]) -> Optional[str]:
@@ -46,25 +67,7 @@ def forecast_latest(
         .order_by(ForecastResult.forecast_type, ForecastResult.computed_at_utc.desc())
     )
     rows = session.execute(stmt).scalars().all()
-    items = [
-        ForecastLatestItem(
-            forecast_type=row.forecast_type,
-            computed_at_utc=row.computed_at_utc.isoformat(),
-            source_window_start_utc=_iso(row.source_window_start_utc),
-            source_window_end_utc=_iso(row.source_window_end_utc),
-            target_time_utc=_iso(row.target_time_utc),
-            horizon_minutes=row.horizon_minutes,
-            score=row.score,
-            value_numeric=row.value_numeric,
-            label=row.label,
-            confidence=row.confidence,
-            status=row.status,
-            model_name=row.model_name,
-            model_version=row.model_version,
-            details=row.details_json,
-        )
-        for row in rows
-    ]
+    items = [_forecast_to_response(row) for row in rows]
     latest_computed = max((row.computed_at_utc for row in rows), default=None)
     return ForecastLatestResponse(
         node_id=effective_node,
