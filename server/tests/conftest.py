@@ -87,10 +87,11 @@ def client(engine, seeded_node):
     from sqlalchemy.orm import sessionmaker
 
     from app.db import get_session
-    from app.ingest.auth import _ingest_limiter
+    from app.ingest.auth import _ingest_limiter, _invalid_bearer_limiter
     from app.main import create_app
 
     _ingest_limiter._buckets.clear()
+    _invalid_bearer_limiter.clear()
 
     maker = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 

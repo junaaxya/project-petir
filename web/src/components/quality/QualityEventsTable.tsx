@@ -177,7 +177,7 @@ export function QualityEventsTable({
                   const codes = parseReasonCodes(event.reason_codes);
                   return (
                     <tr
-                      key={event.edge_id}
+                      key={event.event_id ?? event.edge_id ?? event.created_at_utc}
                       className="border-b border-[var(--color-border)] last:border-0"
                     >
                       <td className="py-2 pr-3 text-[var(--color-text)]">{fmtTs(event.minute_utc)}</td>

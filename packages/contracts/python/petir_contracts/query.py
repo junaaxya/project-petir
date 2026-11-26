@@ -55,14 +55,15 @@ class DailyForecastResponse(_QueryModel):
 
 
 class LightningEventItem(_QueryModel):
-    edge_id: int
+    event_id: str | None = None
+    edge_id: int | None = None
     ts_pi_utc: JsonDateTime
     event_type: Literal["lightning", "disturber", "noise"] | None
     distance_km: float | None
-    energy_raw: int | None
-    noise_level: int | None
-    source: str | None
-    device: str | None
+    energy_raw: int | None = None
+    noise_level: int | None = None
+    source: str | None = None
+    device: str | None = None
 
 
 class PaginationMeta(_QueryModel):

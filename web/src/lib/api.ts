@@ -328,11 +328,12 @@ export async function getIngestRuns(node?: string): Promise<IngestRunsResponse> 
 }
 
 export interface QualityEvent {
-  edge_id: number;
+  event_id?: string | null;
+  edge_id?: number | null;
   minute_utc: string | null;
   quality_status: QualityStatus | null;
-  reason_codes: string | string[] | null;
-  message: string | null;
+  reason_codes?: string | string[] | null;
+  message?: string | null;
   created_at_utc: string;
 }
 

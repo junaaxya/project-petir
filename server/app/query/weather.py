@@ -16,6 +16,13 @@ from app.models.ops import WeatherQualityEvent
 from app.models.weather import WeatherMinuteSummary, WeatherSample
 from app.query.auth import verify_dashboard_user
 from app.query.downsample import bucket_expr, parse_range
+from app.query.limits import (
+    QueryCostLimit,
+    apply_statement_timeout,
+    validate_estimated_cost,
+    validate_page_window,
+)
+from app.query.public_data import opaque_event_id
 from app.schemas.query import HistoryMeta, HistoryResponse, LatestResponse
 from app.services.daily_forecast import calculate_daily_forecast, forecast_ranges_wib
 from app.settings import settings
@@ -38,6 +45,7 @@ _NUMERIC_AGG = {
 _DAILY_FORECAST_CACHE_TTL_SECONDS = 60.0
 _DAILY_FORECAST_MIN_POINTS = 30
 _DAILY_FORECAST_STALE_AFTER = timedelta(minutes=30)
+_INTERVAL_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600}
 _daily_forecast_cache: dict[tuple[str, str], tuple[float, DailyForecastResponse]] = {}
 _daily_forecast_cache_lock = Lock()
 
@@ -143,6 +151,44 @@ def clear_daily_forecast_cache() -> None:
         _daily_forecast_cache.clear()
 
 
+def _validate_history_cost(from_dt: datetime, to_dt: datetime, interval: str) -> None:
+    if interval == "raw":
+        rows_per_minute = settings.weather_raw_estimated_rows_per_minute
+        limit = QueryCostLimit(
+            unit_seconds=max(1, 60 // rows_per_minute),
+            max_units=settings.weather_raw_max_estimated_rows,
+            max_span=timedelta(days=7),
+        )
+    else:
+        limit = QueryCostLimit(
+            unit_seconds=_INTERVAL_SECONDS[interval],
+            max_units=settings.history_max_buckets,
+            max_span=timedelta(days=366),
+        )
+    validate_estimated_cost(from_dt, to_dt, limit)
+
+
+def _quality_event_to_dict(row: WeatherQualityEvent) -> dict[str, Any]:
+    common = {
+        "minute_utc": row.minute_utc.isoformat() if row.minute_utc else None,
+        "quality_status": row.quality_status,
+        "created_at_utc": row.created_at_utc.isoformat() if row.created_at_utc else None,
+    }
+    if settings.public_data_mode == "public_safe":
+        return {
+            "event_id": opaque_event_id(
+                "weather-quality", row.node_id, row.db_epoch, row.edge_id
+            ),
+            **common,
+        }
+    return {
+        "edge_id": row.edge_id,
+        **common,
+        "reason_codes": row.reason_codes,
+        "message": row.message,
+    }
+
+
 @router.get("/daily-forecast", response_model=DailyForecastResponse)
 def weather_daily_forecast(
     node: Optional[str] = Query(default=None),
@@ -233,6 +279,8 @@ def weather_history(
     session: Session = Depends(get_session),
 ) -> HistoryResponse:
     from_dt, to_dt = parse_range(from_, to, interval)
+    _validate_history_cost(from_dt, to_dt, interval)
+    apply_statement_timeout(session, settings.query_statement_timeout_ms)
 
     if interval == "raw":
         series = _raw_series(session, from_dt, to_dt, node, limit)
@@ -272,7 +320,6 @@ def _raw_series(session, from_dt, to_dt, node, limit: int) -> list[dict[str, Any
             "illuminance_lux": row.illuminance_lux,
             "rain_mm": row.rain_mm,
             "wind_speed_ms": row.wind_speed_ms,
-            "wind_dir_code": row.wind_dir_code,
             "wind_dir_deg": row.wind_dir_deg,
         }
         if settings.public_data_mode == "legacy_full":
@@ -282,6 +329,7 @@ def _raw_series(session, from_dt, to_dt, node, limit: int) -> list[dict[str, Any
                     "source": row.source,
                     "device": row.device,
                     "sensor": row.sensor,
+                    "wind_dir_code": row.wind_dir_code,
                     "created_at_utc": row.created_at_utc.isoformat()
                     if row.created_at_utc
                     else None,
@@ -399,6 +447,19 @@ def weather_quality_events(
     # raw sensor samples. So it should support longer dashboard ranges such as
     # 30d and 365d without tripping the raw-series 7-day safety cap.
     from_dt, to_dt = parse_range(from_, to, "1h")
+    validate_estimated_cost(
+        from_dt,
+        to_dt,
+        QueryCostLimit(
+            unit_seconds=60,
+            max_units=settings.quality_max_estimated_minute_rows,
+            max_span=timedelta(days=366),
+        ),
+    )
+    validate_page_window(
+        page=page, page_size=page_size, max_rows=settings.query_max_page_rows
+    )
+    apply_statement_timeout(session, settings.query_statement_timeout_ms)
 
     summary_stmt = (
         select(
@@ -479,16 +540,7 @@ def weather_quality_events(
         stmt = stmt.where(WeatherQualityEvent.quality_status == status)
     items = []
     for row in session.execute(stmt).scalars():
-        items.append(
-            {
-                "edge_id": row.edge_id,
-                "minute_utc": row.minute_utc.isoformat() if row.minute_utc else None,
-                "quality_status": row.quality_status,
-                "reason_codes": row.reason_codes,
-                "message": row.message if settings.public_data_mode == "legacy_full" else None,
-                "created_at_utc": row.created_at_utc.isoformat() if row.created_at_utc else None,
-            }
-        )
+        items.append(_quality_event_to_dict(row))
     summary = {
         "total_minutes": int(summary_row.get("total_minutes") or 0),
         "counts": {

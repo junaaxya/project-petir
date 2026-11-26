@@ -46,6 +46,8 @@ def test_weather_and_lightning_public_metadata_is_redacted(monkeypatch):
     assert sample["device"] == summary["device"] == "weather_sensor"
 
     lightning_row = SimpleNamespace(
+        node_id="public-node",
+        db_epoch="2db0956d-087d-4c36-9d36-bf93f5bf3c3c",
         minute_utc=datetime.now(timezone.utc),
         source="192.168.1.5",
         device="/dev/spidev0.0",
@@ -66,8 +68,60 @@ def test_weather_and_lightning_public_metadata_is_redacted(monkeypatch):
     )
     latest = lightning._summary_to_dict(lightning_row)
     event = lightning._event_to_dict(lightning_row)
-    assert latest["source"] == event["source"] == "lightning_station"
-    assert latest["device"] == event["device"] == "lightning_sensor"
+    assert latest["source"] == "lightning_station"
+    assert latest["device"] == "lightning_sensor"
+    assert {"source", "device", "edge_id", "energy_raw", "noise_level"}.isdisjoint(event)
+
+
+def test_public_lightning_event_uses_opaque_id_and_drops_internal_fields(monkeypatch):
+    from app.query import lightning
+
+    monkeypatch.setattr(lightning.settings, "public_data_mode", "public_safe")
+    now = datetime.now(timezone.utc)
+    row = SimpleNamespace(
+        node_id="public-node",
+        db_epoch="2db0956d-087d-4c36-9d36-bf93f5bf3c3c",
+        edge_id=123456,
+        ts_pi_utc=now,
+        event_type="lightning",
+        distance_km=8.0,
+        energy_raw=991,
+        noise_level=7,
+        irq_source=31,
+        raw_line="IRQ=31 register=0x3f",
+        source="collector@10.0.0.4",
+        device="/dev/serial/by-id/private-device",
+    )
+
+    first = lightning._event_to_dict(row)
+    second = lightning._event_to_dict(row)
+    assert first == second
+    assert first["event_id"].startswith("evt_")
+    assert set(first) == {"event_id", "ts_pi_utc", "event_type", "distance_km"}
+    assert "123456" not in first["event_id"]
+
+
+def test_legacy_lightning_event_preserves_existing_disclosure(monkeypatch):
+    from app.query import lightning
+
+    monkeypatch.setattr(lightning.settings, "public_data_mode", "legacy_full")
+    row = SimpleNamespace(
+        node_id="public-node",
+        db_epoch="2db0956d-087d-4c36-9d36-bf93f5bf3c3c",
+        edge_id=42,
+        ts_pi_utc=datetime.now(timezone.utc),
+        event_type="noise",
+        distance_km=None,
+        energy_raw=12,
+        noise_level=3,
+        source="arduino",
+        device="as3935",
+    )
+    event = lightning._event_to_dict(row)
+    assert event["edge_id"] == 42
+    assert event["energy_raw"] == 12
+    assert event["noise_level"] == 3
+    assert event["source"] == "arduino"
 
 
 def test_forecast_public_response_drops_model_and_arbitrary_details(monkeypatch):

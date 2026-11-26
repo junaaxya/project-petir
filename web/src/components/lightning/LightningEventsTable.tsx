@@ -57,11 +57,15 @@ function csvValue(value: unknown): string {
 }
 
 function exportCsv(events: LightningEvent[]) {
-  const header = ["Waktu WIB", "Waktu UTC", ...CSV_COLUMNS.slice(1).map((c) => c.label)].join(",");
+  const disclosedColumns = CSV_COLUMNS.filter((column) =>
+    events.some((event) => Object.prototype.hasOwnProperty.call(event, column.key)),
+  );
+  const valueColumns = disclosedColumns.filter((column) => column.key !== "ts_pi_utc");
+  const header = ["Waktu WIB", "Waktu UTC", ...valueColumns.map((c) => c.label)].join(",");
   const rows = events.map((event) => [
     formatWib(event.ts_pi_utc),
     event.ts_pi_utc,
-    ...CSV_COLUMNS.slice(1).map((column) => event[column.key]),
+    ...valueColumns.map((column) => event[column.key]),
   ].map(csvValue).join(","));
   const csv = [header, ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -172,7 +176,7 @@ export function LightningEventsTable({ items, loading, pagination = null, onPage
                     event.event_type ? EVENT_TYPE_LABELS[event.event_type] : "—";
                   return (
                     <tr
-                      key={event.edge_id}
+                      key={event.event_id ?? event.edge_id ?? event.ts_pi_utc}
                       className="border-b border-[var(--color-border)] last:border-0"
                     >
                       <td className="py-2 text-[var(--color-text)]">{fmtTs(event.ts_pi_utc)}</td>

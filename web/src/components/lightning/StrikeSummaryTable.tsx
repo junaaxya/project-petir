@@ -112,7 +112,7 @@ export function StrikeSummaryTable({ items, loading }: StrikeSummaryTableProps) 
 
                 return (
                   <tr
-                    key={strike.edge_id}
+                    key={strike.event_id ?? strike.edge_id ?? strike.ts_pi_utc}
                     className="border-b border-[var(--color-border)] last:border-0"
                   >
                     <td className="py-2 text-[var(--color-text)]">

@@ -2,7 +2,7 @@
 // Mirrors ../schema/*.json. Consumed by the Next.js dashboard (web/) for both
 // the ingest envelope shape and the read-path API response types.
 
-export const CONTRACT_VERSION = "2.1.0";
+export const CONTRACT_VERSION = "2.2.0";
 
 export type TableName =
   | "weather_samples"
@@ -293,14 +293,15 @@ export interface DailyForecastResponse {
 }
 
 export interface LightningEventItem {
-  edge_id: number;
+  event_id?: string | null;
+  edge_id?: number | null;
   ts_pi_utc: string;
   event_type: LightningEventType | null;
   distance_km: number | null;
-  energy_raw: number | null;
-  noise_level: number | null;
-  source: string | null;
-  device: string | null;
+  energy_raw?: number | null;
+  noise_level?: number | null;
+  source?: string | null;
+  device?: string | null;
 }
 
 export interface PaginationMeta {

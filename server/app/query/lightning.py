@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,6 +16,13 @@ from app.db import get_session
 from app.models.lightning import LightningEvent, LightningMinuteSummary
 from app.query.auth import verify_dashboard_user
 from app.query.downsample import bucket_expr, parse_range
+from app.query.limits import (
+    QueryCostLimit,
+    apply_statement_timeout,
+    validate_estimated_cost,
+    validate_page_window,
+)
+from app.query.public_data import opaque_event_id
 from app.schemas.query import HistoryMeta, HistoryResponse, LatestResponse
 from app.settings import settings
 
@@ -36,11 +43,20 @@ def _summary_to_dict(row: LightningMinuteSummary) -> dict[str, Any]:
         "noise_event_count": row.noise_event_count,
         "last_event_ts_utc": row.last_event_ts_utc.isoformat() if row.last_event_ts_utc else None,
         "last_distance_km": row.last_distance_km,
-        "max_energy_raw": row.max_energy_raw,
+        "max_energy_raw": row.max_energy_raw if settings.public_data_mode == "legacy_full" else None,
     }
 
 
 def _event_to_dict(row: LightningEvent) -> dict[str, Any]:
+    if settings.public_data_mode == "public_safe":
+        return {
+            "event_id": opaque_event_id(
+                "lightning", row.node_id, row.db_epoch, row.edge_id
+            ),
+            "ts_pi_utc": row.ts_pi_utc.isoformat() if row.ts_pi_utc else None,
+            "event_type": row.event_type,
+            "distance_km": row.distance_km,
+        }
     source = "lightning_station" if settings.public_data_mode == "public_safe" else row.source
     device = "lightning_sensor" if settings.public_data_mode == "public_safe" else row.device
     return {
@@ -82,6 +98,38 @@ _NUMERIC_AGG = {
 }
 
 _EXPORT_MAX_ITEMS = 10_000
+_INTERVAL_SECONDS = {"raw": 60, "1m": 60, "5m": 300, "15m": 900, "1h": 3600}
+
+
+def _validate_history_cost(from_dt: datetime, to_dt: datetime, interval: str) -> None:
+    validate_estimated_cost(
+        from_dt,
+        to_dt,
+        QueryCostLimit(
+            unit_seconds=_INTERVAL_SECONDS[interval],
+            max_units=max(
+                settings.history_max_buckets, 10_080
+            ) if interval == "raw" else settings.history_max_buckets,
+            max_span=timedelta(days=366),
+        ),
+    )
+
+
+def _validate_event_cost(from_dt: datetime, to_dt: datetime, *, export: bool) -> None:
+    rows_per_minute = settings.lightning_event_estimated_rows_per_minute
+    validate_estimated_cost(
+        from_dt,
+        to_dt,
+        QueryCostLimit(
+            unit_seconds=max(1, 60 // rows_per_minute),
+            max_units=(
+                settings.lightning_export_max_estimated_rows
+                if export
+                else settings.lightning_event_max_estimated_rows
+            ),
+            max_span=timedelta(days=31 if export else 90),
+        ),
+    )
 
 
 @router.get("/history", response_model=HistoryResponse)
@@ -93,6 +141,8 @@ def lightning_history(
     session: Session = Depends(get_session),
 ) -> HistoryResponse:
     from_dt, to_dt = parse_range(from_, to, interval)
+    _validate_history_cost(from_dt, to_dt, interval)
+    apply_statement_timeout(session, settings.query_statement_timeout_ms)
 
     if interval == "raw":
         series = _raw_series(session, from_dt, to_dt, node)
@@ -132,7 +182,12 @@ def _bucketed_series(
     session: Session, interval: str, from_dt: datetime, to_dt: datetime, node: Optional[str]
 ) -> list[dict[str, Any]]:
     bucket = bucket_expr(interval, "minute_utc")
-    agg_cols = ", ".join(f"{fn}({col}) AS {col}" for col, fn in _NUMERIC_AGG.items())
+    numeric_agg = _NUMERIC_AGG
+    if settings.public_data_mode == "public_safe":
+        numeric_agg = {
+            key: value for key, value in _NUMERIC_AGG.items() if key != "max_energy_raw"
+        }
+    agg_cols = ", ".join(f"{fn}({col}) AS {col}" for col, fn in numeric_agg.items())
     where = ["minute_utc >= :from_dt", "minute_utc < :to_dt"]
     params: dict[str, Any] = {"from_dt": from_dt, "to_dt": to_dt}
     if node:
@@ -170,6 +225,11 @@ def lightning_events(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     from_dt, to_dt = parse_range(from_, to, "1h")
+    _validate_event_cost(from_dt, to_dt, export=False)
+    validate_page_window(
+        page=page, page_size=page_size, max_rows=settings.query_max_page_rows
+    )
+    apply_statement_timeout(session, settings.query_statement_timeout_ms)
     count_stmt = (
         select(text("COUNT(*)"))
         .select_from(LightningEvent)
@@ -216,7 +276,11 @@ def lightning_events(
     }
 
 
-@router.get("/events/export", response_model=LightningEventsExportResponse)
+@router.get(
+    "/events/export",
+    response_model=LightningEventsExportResponse,
+    response_model_exclude_none=True,
+)
 def export_lightning_events(
     from_: Optional[str] = Query(default=None, alias="from"),
     to: Optional[str] = Query(default=None),
@@ -225,6 +289,8 @@ def export_lightning_events(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     from_dt, to_dt = parse_range(from_, to, "1h")
+    _validate_event_cost(from_dt, to_dt, export=True)
+    apply_statement_timeout(session, settings.export_statement_timeout_ms)
     stmt = (
         select(LightningEvent)
         .where(LightningEvent.ts_pi_utc >= from_dt)
@@ -263,6 +329,7 @@ def latest_lightning_events(
     page_size: int = Query(default=20, ge=1, le=100),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    apply_statement_timeout(session, settings.query_statement_timeout_ms)
     count_stmt = select(text("COUNT(*)")).select_from(LightningEvent)
     if node:
         count_stmt = count_stmt.where(LightningEvent.node_id == node)

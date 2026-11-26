@@ -130,3 +130,62 @@ Remaining operational blockers before public routing:
 
 Approach A can follow later after an explicit public-data contract, event-disclosure
 review, and separate public-read rate/cache policy are implemented and approved.
+
+## Phase 4B.3 pre-auth protection
+
+The application now applies a bounded, process-local invalid-bearer limiter before
+performing an `edge_nodes` token lookup. Its state is protected by a lock, capped by
+`INVALID_BEARER_MAX_CLIENTS`, stores only a client identity (never a bearer token),
+and returns HTTP `429 BACKPRESSURE` when the threshold is exceeded. A successful
+node authentication clears only that client's failed-attempt state.
+
+`CF-Connecting-IP` and `X-Forwarded-For` are ignored unless the immediate TCP peer
+belongs to `TRUSTED_PROXY_CIDRS`. For Petir 2, configure that value to the exact
+Docker subnet/CIDR containing the reviewed Next.js reverse proxy. Do not put arbitrary
+client, campus, Tailscale, or broad Internet CIDRs in this setting. The reverse proxy
+must replace—not append untrusted client values to—`CF-Connecting-IP`. With an empty
+setting, the backend conservatively keys on the direct peer; this is safe against
+header spoofing but is not the desired production identity boundary behind a shared
+proxy.
+
+Recommended Petir 2 application values:
+
+```dotenv
+INVALID_BEARER_MAX_FAILURES=10
+INVALID_BEARER_WINDOW_SECONDS=60
+INVALID_BEARER_BLOCK_SECONDS=300
+INVALID_BEARER_MAX_CLIENTS=10000
+TRUSTED_PROXY_CIDRS=<exact internal reverse-proxy subnet or address>
+```
+
+These controls are per application process and are defense in depth, not a distributed
+rate limiter. If the backend is scaled to multiple workers/replicas, keep the Cloudflare
+rule below and move shared limiter state to an approved bounded store before relying on
+one global application threshold.
+
+## Exact Cloudflare rate-limit recommendation (do not apply in this change)
+
+Create one rate-limiting rule scoped only to the Petir 2 machine-ingest endpoint:
+
+```text
+Rule name: petir2-ingest-invalid-abuse-guard
+Expression:
+(http.host eq "nelayan-sungailiat.petirlabs.com" and
+ http.request.method eq "POST" and
+ http.request.uri.path eq "/api/ingest/sync-batch")
+Counting characteristic: ip.src
+Threshold: 60 requests
+Period: 60 seconds
+Action: Block
+Mitigation timeout: 600 seconds
+Response: Cloudflare default 429 response
+```
+
+Rationale: a normal first sync currently sends at most six logical batches before
+retries, so 60 requests/minute leaves substantial retry margin while bounding repeated
+invalid-bearer traffic. Do not use Managed Challenge for this machine endpoint, do not
+scope the rule to the entire hostname or `/api/*`, and do not create an interactive
+Access redirect on this path. Cloudflare cannot know whether a bearer is valid, so the
+rule counts all matching POSTs; application authentication remains authoritative.
+Before any separate production activation, confirm the observed legitimate retry rate
+and raise the threshold only with evidence. This document does not change Cloudflare.
