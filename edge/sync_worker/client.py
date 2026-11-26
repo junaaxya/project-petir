@@ -14,11 +14,22 @@ class RetriableError(Exception):
     pass
 
 
+class AmbiguousBatchError(RetriableError):
+    pass
+
+
 class FatalBatchError(Exception):
-    def __init__(self, status_code: int, body: str) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        body: str,
+        *,
+        accepted_cursor: int | None = None,
+    ) -> None:
         super().__init__(f"fatal batch error {status_code}: {body}")
         self.status_code = status_code
         self.body = body
+        self.accepted_cursor = accepted_cursor
 
 
 class BackpressureError(Exception):
@@ -43,14 +54,22 @@ class SyncClient:
                     json=envelope,
                     headers=self._headers(),
                 )
+            except httpx.TimeoutException as exc:
+                if self._config.strict_first_sync or attempt > self._config.max_retries:
+                    raise AmbiguousBatchError("request outcome is ambiguous") from exc
+                self._sleep(attempt)
+                continue
             except httpx.TransportError as exc:
                 if attempt > self._config.max_retries:
-                    raise RetriableError(str(exc)) from exc
+                    raise RetriableError("connection failed") from exc
                 self._sleep(attempt)
                 continue
 
             if resp.status_code == 200:
-                parsed = SyncBatchResponse.model_validate(resp.json())
+                try:
+                    parsed = SyncBatchResponse.model_validate(resp.json())
+                except (TypeError, ValueError) as exc:
+                    raise FatalBatchError(200, "invalid ACK: malformed response") from exc
                 self._validate_ack(envelope, parsed)
                 return parsed
             if resp.status_code == 429:
@@ -60,7 +79,7 @@ class SyncClient:
                     raise RetriableError(f"server {resp.status_code}")
                 self._sleep(attempt)
                 continue
-            raise FatalBatchError(resp.status_code, resp.text)
+            raise FatalBatchError(resp.status_code, "HTTP request failed")
 
     @staticmethod
     def _validate_ack(
@@ -93,7 +112,11 @@ class SyncClient:
             and accepted_cursor is not None
             and accepted_cursor < sent_cursor
         ):
-            raise FatalBatchError(200, "invalid ACK: cursor regression")
+            raise FatalBatchError(
+                200,
+                "invalid ACK: cursor regression",
+                accepted_cursor=accepted_cursor,
+            )
         row_cursor_field = "edge_id" if expected_strategy == "append" else "change_seq"
         row_cursor_values: list[int] = []
         for row in envelope.get("rows", []):
@@ -107,7 +130,11 @@ class SyncClient:
         if accepted_cursor is None:
             raise FatalBatchError(200, "invalid ACK: accepted cursor missing")
         if accepted_cursor != max(row_cursor_values):
-            raise FatalBatchError(200, "invalid ACK: cursor does not match batch")
+            raise FatalBatchError(
+                200,
+                "invalid ACK: cursor does not match batch",
+                accepted_cursor=accepted_cursor,
+            )
         row_count = len(envelope.get("rows", []))
         if response.accepted > row_count:
             raise FatalBatchError(200, "invalid ACK: accepted count exceeds batch")

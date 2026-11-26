@@ -24,9 +24,17 @@ How to roll out the PetirDashboard sync worker on the **live** Raspberry Pi. The
 ```bash
 cp edge/.env.example edge/.env
 # edit edge/.env: SERVER_URL, NODE_ID, NODE_TOKEN, EDGE_DB_PATH
+# for the guarded first production sync only: STRICT_FIRST_SYNC=true
 ```
 
 `EDGE_DB_PATH` points at the live DB: `/home/pi/weather-edge/data/db/weather_edge.db`.
+
+`STRICT_FIRST_SYNC` defaults to `false` for backward compatibility. Set it to
+`true` for the first production sync when any partial/rejected ACK must stop the
+run before the next table without advancing the local cursor. A full ACK must
+have `status=accepted`, an empty `rejected` list, and an `accepted_cursor` equal
+to the maximum `edge_id` or `change_seq` in the posted rows. After validating the
+first sync, set it back to `false` if normal per-row quarantine is desired.
 
 ### 2. Inspect the live schema (read-only)
 
@@ -91,3 +99,11 @@ To revert the additive DB objects, follow the rollback section in [edge-migratio
 - The worker is single-run: each timer tick runs one cycle and exits. There is no long-lived daemon.
 - The cursor only advances after a 2xx ACK, so a server outage simply pauses progress; the next tick resumes from the last checkpoint.
 - Logs: `journalctl -u petir-sync.service`. Each run also writes a row to the local `sync_runs` table in the edge DB.
+- In strict first-sync mode, a timeout is recorded as an ambiguous outcome and is
+  not replayed within that run: the server may already have committed it. The
+  worker stops with the cursor unchanged and logs only the table and local/server
+  cursor state. Verify server state before manually retrying; tokens and row data
+  are never included in this diagnostic.
+- `MAX_RETRIES` counts retries after the initial request. `MAX_RETRIES=0` makes
+  exactly one request. Strict-mode ambiguous timeouts bypass retries; ordinary
+  connection failures and retryable 5xx responses retain bounded retry behavior.

@@ -14,6 +14,7 @@ class Config:
     max_retries: int
     backoff_base_s: float
     backoff_cap_s: float
+    strict_first_sync: bool = False
 
     @property
     def sync_batch_url(self) -> str:
@@ -27,6 +28,18 @@ def _require(name: str, env: dict[str, str]) -> str:
     return value
 
 
+def _boolean(name: str, env: dict[str, str], default: bool = False) -> bool:
+    value = env.get(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"invalid boolean environment variable: {name}")
+
+
 def load_config(env: dict[str, str] | None = None) -> Config:
     env = dict(os.environ if env is None else env)
     return Config(
@@ -38,4 +51,5 @@ def load_config(env: dict[str, str] | None = None) -> Config:
         max_retries=int(env.get("MAX_RETRIES", "3")),
         backoff_base_s=float(env.get("BACKOFF_BASE_S", "2")),
         backoff_cap_s=float(env.get("BACKOFF_CAP_S", "30")),
+        strict_first_sync=_boolean("STRICT_FIRST_SYNC", env),
     )

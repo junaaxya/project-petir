@@ -152,6 +152,15 @@ SQLite is the buffer. While offline, data accumulates and the cursor does not ad
 
 If a single row fails validation the server returns it in `rejected[]` but still advances `accepted_cursor` past it. This prevents one poison row from blocking the stream forever. Rejected rows are logged for later inspection.
 
+For a guarded first production sync, set `STRICT_FIRST_SYNC=true`. This opt-in
+mode requires `status=accepted`, `rejected=[]`, and an accepted cursor matching
+the maximum cursor value in the transmitted batch. Any partial/rejected or
+mismatched ACK stops the run before the next table and leaves the local cursor
+unchanged. A request timeout is treated as ambiguous because the server may have
+committed before the response was lost; strict mode does not replay it inside the
+run and records guidance to verify server state before retrying. The default is
+`false`, preserving normal quarantine behavior.
+
 ## Local edge sync_runs (mirror)
 
 ```sql

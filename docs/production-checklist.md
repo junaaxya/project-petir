@@ -115,16 +115,22 @@ See [edge-schema-drift.md](./edge-schema-drift.md) for the earlier real-Pi valid
 1. Confirm server is on contract **v2** (currently `CONTRACT_VERSION = 2.1.0`).
 2. Edge ships with the v2 normalize layer (`healthy→ok`, `warning→warn`,
    `noisy→noise`, `active→activity`).
-3. Enable the timer; cursors start at zero → full history ingests cleanly.
-4. Watch the first cycle:
+3. Set `STRICT_FIRST_SYNC=true` in `edge/.env` before enabling the timer. This
+   fail-closed guard leaves the cursor unchanged and stops before the next table
+   on partial/rejected/mismatched ACKs or an ambiguous timeout. It is opt-in and
+   defaults off for backward compatibility.
+4. Enable the timer; cursors start at zero → full history ingests cleanly.
+5. Watch the first cycle:
    ```bash
    sudo systemctl start petir-sync.service
    journalctl -u petir-sync.service -n 50 --no-pager
    # confirm ingest services untouched:
    systemctl is-active weather-ingest lightning-ingest
    ```
-5. On the server, confirm rows landing and rejected ≈ 0:
+6. On the server, confirm rows landing and `rejected = 0`:
    `GET https://petirlabs.com/api/ingest/runs`.
+7. After verifying every first-sync ACK, set `STRICT_FIRST_SYNC=false` if normal
+   quarantine semantics (advance past individually rejected rows) are desired.
 
 ## 7. Post-deploy verification
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 import sys
 import uuid
@@ -9,6 +10,7 @@ from petir_contracts import CONTRACT_VERSION, CursorStrategy
 
 from sync_worker import cursors, readers, run_record
 from sync_worker.client import (
+    AmbiguousBatchError,
     BackpressureError,
     FatalBatchError,
     RetriableError,
@@ -20,6 +22,8 @@ from sync_worker.tables import PRIORITY_ORDER, TableConfig
 EXIT_OK = 0
 EXIT_PARTIAL = 1
 EXIT_FAILED = 2
+
+logger = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:
@@ -61,6 +65,35 @@ def _accepted_value(response_cursor, strategy: CursorStrategy) -> int | None:
     return response_cursor.last_change_seq
 
 
+def _failure_detail(
+    outcome: str,
+    table: str,
+    local_cursor: int,
+    server_cursor: int | None = None,
+) -> str:
+    detail = f"{outcome}; table={table}; local_cursor={local_cursor}"
+    if server_cursor is not None:
+        detail += f"; server_accepted_cursor={server_cursor}"
+    return detail + "; cursor unchanged; verify server state before retry"
+
+
+def _log_stop(
+    outcome: str,
+    table: str,
+    local_cursor: int,
+    server_cursor: int | None = None,
+) -> None:
+    logger.warning(
+        "sync stopped outcome=%s table=%s local_cursor=%s "
+        "server_accepted_cursor=%s cursor_unchanged=true "
+        "guidance=verify_server_state_before_retry",
+        outcome,
+        table,
+        local_cursor,
+        server_cursor if server_cursor is not None else "unknown",
+    )
+
+
 def run_once(config: Config, client: SyncClient, conn: sqlite3.Connection) -> int:
     cursors.ensure_local_tables(conn)
     run_record.ensure_run_table(conn)
@@ -88,20 +121,65 @@ def run_once(config: Config, client: SyncClient, conn: sqlite3.Connection) -> in
         )
         try:
             response = client.post_batch(envelope)
-        except BackpressureError as exc:
+        except AmbiguousBatchError:
             had_failure = True
-            error_detail = str(exc)
+            error_detail = _failure_detail(
+                "ambiguous request outcome", cfg.name, cursor_value
+            )
+            _log_stop("ambiguous", cfg.name, cursor_value)
             break
-        except RetriableError as exc:
+        except BackpressureError:
             had_failure = True
-            error_detail = str(exc)
+            error_detail = _failure_detail("server backpressure", cfg.name, cursor_value)
+            _log_stop("backpressure", cfg.name, cursor_value)
+            break
+        except RetriableError:
+            had_failure = True
+            error_detail = _failure_detail("connection failure", cfg.name, cursor_value)
+            _log_stop("connection_failure", cfg.name, cursor_value)
             break
         except FatalBatchError as exc:
             had_failure = True
-            error_detail = str(exc)
+            error_detail = _failure_detail(
+                f"HTTP/ACK failure ({exc.status_code})",
+                cfg.name,
+                cursor_value,
+                exc.accepted_cursor,
+            )
+            _log_stop(
+                "http_or_ack_failure",
+                cfg.name,
+                cursor_value,
+                exc.accepted_cursor,
+            )
             break
 
         accepted_value = _accepted_value(response.accepted_cursor, cfg.strategy)
+        if config.strict_first_sync and (
+            response.status.value != "accepted" or response.rejected
+        ):
+            had_failure = True
+            error_detail = _failure_detail(
+                f"strict sync {response.status.value} ACK",
+                cfg.name,
+                cursor_value,
+                accepted_value,
+            )
+            _log_stop(
+                f"strict_{response.status.value}_ack",
+                cfg.name,
+                cursor_value,
+                accepted_value,
+            )
+            break
+        if config.strict_first_sync:
+            logger.info(
+                "strict sync ACK accepted table=%s local_cursor=%s "
+                "server_accepted_cursor=%s rejected=0",
+                cfg.name,
+                cursor_value,
+                accepted_value,
+            )
         if accepted_value is not None:
             cursors.advance_cursor(
                 conn,
