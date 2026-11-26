@@ -177,8 +177,8 @@ function LightningPageContent() {
       {!latestLoading && latest?.minute == null && (
         <Card>
           <EmptyState
-            message="Tidak ada data petir"
-            detail="Sensor ini melaporkan data yang jarang. Status di atas mencerminkan kondisi terkini yang diketahui."
+            message="Belum ada pengamatan petir yang valid"
+            detail="Data pengamatan belum tersedia; jumlah kejadian tidak diasumsikan nol."
           />
         </Card>
       )}

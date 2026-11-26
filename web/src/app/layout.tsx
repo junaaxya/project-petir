@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "./AppShell";
 import { getSiteConfig, sitePageTitle } from "@/lib/siteConfig";
+import { SiteConfigProvider } from "@/components/common/SiteConfigProvider";
 
 // Site identity is deployment configuration. Force request-time evaluation so a
 // single standalone image can serve Petir 1 defaults or a named Petir 2 site.
@@ -36,9 +37,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
   return (
     <html lang="id">
-      <body data-petir-site-id={site.siteId} data-petir-station-version={site.stationVersion || undefined}>
+      <body data-petir-site-id={site.siteId} data-petir-station-version={site.stationVersion || undefined} data-rain-semantics={site.rainSemantics}>
         <Providers>
-          <AppShell site={site}>{children}</AppShell>
+          <SiteConfigProvider site={site}>
+            <AppShell site={site}>{children}</AppShell>
+          </SiteConfigProvider>
         </Providers>
       </body>
     </html>

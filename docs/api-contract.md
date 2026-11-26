@@ -99,6 +99,14 @@ Params: `node?`, `status?`, `limit`. Returns recent `sync_runs`.
 | `GET /api/lightning/events` | `from,to,node?,limit,cursor` | raw events (paginated) |
 | `GET /api/system/summary` | `from?,to?,node?` | counts per level/event_type + recent errors |
 
+Rainfall semantics are source-specific: WS3 `rain_mm` is rainfall over the
+trailing rolling 1-minute window. `rain_max` is the maximum of that rolling
+1-minute measurement within the returned summary bucket. Neither field is an
+hourly or daily accumulated rainfall total. Deployments must set the dashboard
+presentation semantics explicitly when they use this WS3 contract; Petir 2 uses
+`PETIR_RAIN_SEMANTICS=rolling_1m_max`, while an unset value retains legacy Petir 1
+labels.
+
 ### History response shape
 
 ```json

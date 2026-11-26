@@ -96,6 +96,46 @@ def test_siren_routes_are_disabled_before_node_or_admin_auth(client):
     assert client.post("/api/siren/audit-test/status", json={}).status_code == 404
 
 
+def test_invalid_bearer_limit_returns_429_before_payload_validation(client):
+    from app.ingest.auth import _invalid_bearer_limiter
+
+    original_max = _invalid_bearer_limiter._max_failures
+    original_window = _invalid_bearer_limiter._window_seconds
+    original_block = _invalid_bearer_limiter._block_seconds
+    try:
+        _invalid_bearer_limiter._max_failures = 2
+        _invalid_bearer_limiter._window_seconds = 60
+        _invalid_bearer_limiter._block_seconds = 60
+        _invalid_bearer_limiter.clear()
+
+        first = client.post(
+            "/api/ingest/sync-batch",
+            json={},
+            headers={"Authorization": "Bearer invalid-one"},
+        )
+        second = client.post(
+            "/api/ingest/sync-batch",
+            json={},
+            headers={"Authorization": "Bearer invalid-two"},
+        )
+        blocked = client.post(
+            "/api/ingest/sync-batch",
+            json={},
+            headers={"Authorization": "Bearer invalid-three"},
+        )
+
+        assert first.status_code == second.status_code == 401
+        assert blocked.status_code == 429
+        assert blocked.json()["error"]["code"] == "BACKPRESSURE"
+        assert "invalid-three" not in blocked.text
+    finally:
+        _invalid_bearer_limiter._max_failures = original_max
+        _invalid_bearer_limiter._window_seconds = original_window
+        _invalid_bearer_limiter._block_seconds = original_block
+        _invalid_bearer_limiter.clear()
+
+
+
 def test_rate_limit_blocks_after_threshold(client, session, monkeypatch):
     monkeypatch.setattr("app.settings.settings.rate_limit_per_node", 2)
     monkeypatch.setattr("app.settings.settings.rate_limit_window_seconds", 60)

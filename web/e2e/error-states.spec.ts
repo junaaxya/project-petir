@@ -182,9 +182,12 @@ test.describe("protected query states", () => {
 });
 
 test("mobile content can scroll clear of fixed navigation", async ({ page }, testInfo) => {
-  test.skip(!testInfo.project.name.startsWith("mobile"), "mobile-only geometry check");
   await page.route("**/api/**", fulfillEmptyApi);
   await page.goto("/health");
+  if (!testInfo.project.name.startsWith("mobile")) {
+    await expect(page.locator("nav.fixed.bottom-0")).toBeHidden();
+    return;
+  }
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   const geometry = await page.evaluate(() => {
     const nav = document.querySelector("nav.fixed.bottom-0")?.getBoundingClientRect();

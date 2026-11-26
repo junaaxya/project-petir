@@ -130,3 +130,21 @@ def test_post_batch_rejects_summary_cursor_outside_batch():
             client.post_batch(envelope)
     finally:
         client.close()
+
+
+def test_post_batch_requires_ack_cursor_to_match_maximum_row_not_start_cursor():
+    envelope = _envelope()
+    envelope["rows"] = [
+        {"edge_id": 11, "created_at_utc": "2026-01-01T00:00:00Z"},
+        {"edge_id": 14, "created_at_utc": "2026-01-01T00:00:01Z"},
+    ]
+    payload = _ack()
+    payload["accepted"] = 2
+    payload["accepted_cursor"]["last_edge_id"] = 11
+
+    client = _client_for(payload)
+    try:
+        with pytest.raises(FatalBatchError, match="cursor does not match batch"):
+            client.post_batch(envelope)
+    finally:
+        client.close()

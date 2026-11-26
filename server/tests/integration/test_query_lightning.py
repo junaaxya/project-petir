@@ -66,6 +66,9 @@ def _seed_lightning_events(session, count: int = 4):
                 distance_km=10.0 + i,
                 energy_raw=400 + i * 50,
                 noise_level=None,
+                irq_source=31,
+                raw_line="IRQ=31 register=0x3f /dev/spidev0.0",
+                edge_ingest_run_id=9000 + i,
                 created_at_utc=base + timedelta(seconds=i * 30),
             )
         )
@@ -125,6 +128,11 @@ def test_lightning_events_returns_rows(client, session):
     body = r.json()
     assert body["meta"]["count"] == 4
     assert body["items"][0]["event_type"] in ("lightning", "disturber")
+    assert body["items"][0]["event_id"].startswith("evt_")
+    assert {
+        "edge_id", "energy_raw", "noise_level", "source", "device",
+        "irq_source", "raw_line", "edge_ingest_run_id",
+    }.isdisjoint(body["items"][0])
 
 
 def test_lightning_events_filter_by_type(client, session):
@@ -149,6 +157,37 @@ def test_lightning_events_export_returns_all_filtered_rows_for_month_range(clien
     body = r.json()
     assert body["meta"] == {"count": 4, "scope": "all_filtered"}
     assert len(body["items"]) == 4
+    assert set(body["items"][0]) == {
+        "event_id", "ts_pi_utc", "event_type", "distance_km",
+    }
+
+
+def test_lightning_query_cost_and_page_windows_are_bounded(client):
+    now = datetime.now(timezone.utc)
+    history = client.get(
+        "/api/lightning/history",
+        params={
+            "interval": "1m",
+            "from": (now - timedelta(days=30)).isoformat(),
+            "to": now.isoformat(),
+        },
+    )
+    assert history.status_code == 416
+    assert history.json()["error"]["code"] == "QUERY_COST_TOO_HIGH"
+
+    events = client.get("/api/lightning/events?page=101&page_size=100")
+    assert events.status_code == 416
+    assert events.json()["error"]["code"] == "PAGE_WINDOW_TOO_LARGE"
+
+    export = client.get(
+        "/api/lightning/events/export",
+        params={
+            "from": (now - timedelta(days=32)).isoformat(),
+            "to": now.isoformat(),
+        },
+    )
+    assert export.status_code == 416
+    assert export.json()["error"]["code"] == "RANGE_TOO_LARGE"
 
 
 def test_lightning_events_export_reports_limit_with_structured_error(client, session, monkeypatch):

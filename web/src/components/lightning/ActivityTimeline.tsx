@@ -26,7 +26,13 @@ export function ActivityTimeline({ series, loading, interval }: ActivityTimeline
     );
   }
 
-  if (series.length === 0) {
+  const hasValidObservation = series.some((point) =>
+    [point.lightning_count, point.disturber_count, point.noise_event_count].some(
+      (value) => typeof value === "number" && Number.isFinite(value),
+    ),
+  );
+
+  if (series.length === 0 || !hasValidObservation) {
     return (
       <Card>
         <p className="mb-2 flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -35,7 +41,7 @@ export function ActivityTimeline({ series, loading, interval }: ActivityTimeline
         </p>
         <EmptyState
           message="Tidak ada data aktivitas"
-          detail="Jumlah akan muncul setelah data petir tersedia."
+          detail="Belum ada pengamatan valid. Jumlah kejadian tetap kosong dan tidak diasumsikan nol."
         />
       </Card>
     );
@@ -50,16 +56,20 @@ export function ActivityTimeline({ series, loading, interval }: ActivityTimeline
       minute: "2-digit",
     }),
   );
-  const lightning = series.map((p) => (p.lightning_count as number | null) ?? 0);
-  const disturber = series.map((p) => (p.disturber_count as number | null) ?? 0);
-  const noise = series.map((p) => (p.noise_event_count as number | null) ?? 0);
+  const lightning = series.map((p) => typeof p.lightning_count === "number" ? p.lightning_count : null);
+  const disturber = series.map((p) => typeof p.disturber_count === "number" ? p.disturber_count : null);
+  const noise = series.map((p) => typeof p.noise_event_count === "number" ? p.noise_event_count : null);
+  const sum = (values: Array<number | null>) => {
+    const measured = values.filter((value): value is number => value != null);
+    return measured.length > 0 ? measured.reduce((total, value) => total + value, 0) : null;
+  };
   const totals = {
-    lightning: lightning.reduce((sum, value) => sum + value, 0),
-    disturber: disturber.reduce((sum, value) => sum + value, 0),
-    noise: noise.reduce((sum, value) => sum + value, 0),
+    lightning: sum(lightning),
+    disturber: sum(disturber),
+    noise: sum(noise),
   };
   const activeBuckets = series.filter(
-    (_, index) => lightning[index] > 0 || disturber[index] > 0 || noise[index] > 0,
+    (_, index) => (lightning[index] ?? 0) > 0 || (disturber[index] ?? 0) > 0 || (noise[index] ?? 0) > 0,
   ).length;
 
   const option = {
@@ -131,15 +141,15 @@ export function ActivityTimeline({ series, loading, interval }: ActivityTimeline
       <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
         <div className="rounded-lg border border-amber-800/60 bg-amber-900/20 px-2 py-1.5">
           <span className="block text-amber-400">Petir</span>
-          <strong className="text-sm text-[var(--color-text)]">{totals.lightning}</strong>
+          <strong className="text-sm text-[var(--color-text)]">{totals.lightning ?? "—"}</strong>
         </div>
         <div className="rounded-lg border border-indigo-800/60 bg-indigo-900/20 px-2 py-1.5">
           <span className="block text-indigo-400">Gangguan</span>
-          <strong className="text-sm text-[var(--color-text)]">{totals.disturber}</strong>
+          <strong className="text-sm text-[var(--color-text)]">{totals.disturber ?? "—"}</strong>
         </div>
         <div className="rounded-lg border border-slate-700 bg-slate-900/30 px-2 py-1.5">
           <span className="block text-slate-400">Derau</span>
-          <strong className="text-sm text-[var(--color-text)]">{totals.noise}</strong>
+          <strong className="text-sm text-[var(--color-text)]">{totals.noise ?? "—"}</strong>
         </div>
       </div>
       <ReactECharts option={option} style={{ height: "clamp(160px, 30vw, 220px)" }} />

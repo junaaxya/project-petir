@@ -5,6 +5,8 @@ import type { HistoryPoint } from "@/lib/types";
 import { formatWindDirection } from "@/lib/wind";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/common/Card";
+import { useSiteConfig } from "@/components/common/SiteConfigProvider";
+import { rainSeriesLabel } from "@/lib/rainSemantics";
 
 const SUMMARY_COLUMNS = [
   { key: "bucket", label: "Waktu" },
@@ -146,9 +148,15 @@ interface WeatherDataTableProps {
 }
 
 export function WeatherDataTable({ series, loading, rawLimited = false }: WeatherDataTableProps) {
+  const { rainSemantics } = useSiteConfig();
   const rows = series as TableRow[];
   const isRawSeries = rows.length > 0 && "temperature_c" in rows[0];
-  const columns = (isRawSeries ? RAW_COLUMNS : SUMMARY_COLUMNS) as readonly Column[];
+  const baseColumns = (isRawSeries ? RAW_COLUMNS : SUMMARY_COLUMNS) as readonly Column[];
+  const columns = baseColumns.map((column) =>
+    column.key === "rain_max" || column.key === "rain_mm"
+      ? { ...column, label: rainSeriesLabel(rainSemantics, isRawSeries) }
+      : column,
+  ) as readonly Column[];
 
   const [sortKey, setSortKey] = useState<SortKey>("bucket");
   const [sortAsc, setSortAsc] = useState(false);

@@ -4,7 +4,7 @@ import type { QualityEvent } from "@/lib/api";
 import { Card } from "@/components/common/Card";
 import { EmptyState } from "@/components/common/EmptyState";
 
-function parseReasonCodes(codes: string | string[] | null): string[] {
+function parseReasonCodes(codes: string | string[] | null | undefined): string[] {
   if (!codes) return [];
   if (Array.isArray(codes)) return codes.filter(Boolean);
   try {

@@ -8,13 +8,17 @@ export default defineConfig({
   reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
   outputDir: "test-results",
   webServer: {
-    command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
-    url: "http://127.0.0.1:3100",
+    command: "npm run dev -- --hostname 127.0.0.1 --port 3110",
+    url: "http://127.0.0.1:3110",
     reuseExistingServer: false,
     timeout: 120_000,
+    env: {
+      ...process.env,
+      PETIR_RAIN_SEMANTICS: "rolling_1m_max",
+    },
   },
   use: {
-    baseURL: "http://127.0.0.1:3100",
+    baseURL: "http://127.0.0.1:3110",
     trace: "retain-on-failure",
   },
   projects: [

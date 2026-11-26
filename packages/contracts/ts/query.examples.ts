@@ -5,14 +5,10 @@ import type {
 } from "./index";
 
 const event = {
-  edge_id: 42,
+  event_id: "evt_qM8vLk2vIBgMPMi_PxRaQ1dn",
   ts_pi_utc: "2026-11-22T00:00:00+00:00",
   event_type: "lightning",
   distance_km: 12,
-  energy_raw: 900,
-  noise_level: 1,
-  source: "arduino",
-  device: "as3935",
 } as const;
 
 export const QUERY_CONTRACT_EXAMPLES = {

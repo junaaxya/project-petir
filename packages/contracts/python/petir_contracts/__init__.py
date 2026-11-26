@@ -44,7 +44,7 @@ from .query import (
     PaginationMeta,
 )
 
-CONTRACT_VERSION = "2.1.0"
+CONTRACT_VERSION = "2.2.0"
 
 __all__ = [
     "CONTRACT_VERSION",

@@ -12,9 +12,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["edge_id", "ts_pi_utc", "event_type", "distance_km", "energy_raw", "noise_level", "source", "device"],
+        "required": ["ts_pi_utc", "event_type", "distance_km"],
+        "anyOf": [
+          {"required": ["event_id"]},
+          {"required": ["edge_id"]}
+        ],
         "properties": {
-          "edge_id": {"type": "integer"},
+          "event_id": {"type": "string", "pattern": "^evt_[A-Za-z0-9_-]+$"},
+          "edge_id": {"type": ["integer", "null"]},
           "ts_pi_utc": {"type": "string", "format": "date-time"},
           "event_type": {"enum": ["lightning", "disturber", "noise", null]},
           "distance_km": {"type": ["number", "null"]},

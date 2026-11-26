@@ -63,6 +63,7 @@ assert environment["PETIR_SITE_NAME"] == "Nelayan Sungailiat"
 assert environment["PETIR_STATION_VERSION"] == "2.0"
 assert environment["PETIR_SITE_ID"] == "nelayan-sungailiat"
 assert environment["PETIR_PUBLIC_DOMAIN"] == "nelayan-sungailiat.petirlabs.com"
+assert environment["PETIR_RAIN_SEMANTICS"] == "rolling_1m_max"
 
 server_environment = server["environment"]
 assert server_environment["ADMIN_AUTH_MODE"] == "disabled"
@@ -75,4 +76,4 @@ assert server_environment["PUBLIC_DATA_MODE"] == "public_safe"
 assert jwks_proxy["environment"]["ALLOWED_JWKS_HOST"] == ""
 assert "/healthz" in server["healthcheck"]["test"][-1]
 
-print("Petir 2 Compose isolation, branding, and access-control contract: OK")
+print("Petir 2 Compose isolation, branding, rainfall semantics, and access-control contract: OK")
