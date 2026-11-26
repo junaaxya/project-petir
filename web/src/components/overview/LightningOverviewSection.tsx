@@ -19,7 +19,7 @@ function CountStat({ label, value }: { label: string; value: number | null | und
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]/70 px-3 py-2">
       <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-[var(--color-text)]">{value ?? 0}</p>
+      <p className="mt-1 text-lg font-semibold text-[var(--color-text)]">{value ?? "—"}</p>
     </div>
   );
 }
@@ -28,6 +28,7 @@ export function LightningOverviewSection({ lightning, lightningLoading, nodeStat
   const minute = lightning?.minute ?? null;
   const realtimeUnavailable = isRealtimeUnavailable(nodeStatus);
   const snapshotDetail = realtimeSnapshotDetail(nodeStatus, minute?.minute_utc);
+  const hasValidObservation = minute != null && minute.status != null && minute.status !== "no_data";
 
   return (
     <section className="flex flex-col gap-4">
@@ -70,7 +71,12 @@ export function LightningOverviewSection({ lightning, lightningLoading, nodeStat
                   <p className="font-medium text-[var(--color-text)]">Sensor sedang offline</p>
                   <p>{snapshotDetail ?? "Status realtime belum tersedia."}</p>
                 </>
-              ) : minute?.last_event_ts_utc ? (
+              ) : !hasValidObservation ? (
+                <>
+                  <p className="font-medium text-[var(--color-text)]">Belum ada pengamatan petir yang valid</p>
+                  <p>Jumlah kejadian tetap ditampilkan sebagai tanda pisah, bukan nol.</p>
+                </>
+              ) : minute.last_event_ts_utc ? (
                 <>
                   <p className="font-medium text-[var(--color-text)]">Aktivitas terbaru terdeteksi</p>
                   <p>

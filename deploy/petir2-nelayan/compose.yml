@@ -132,6 +132,7 @@ services:
       PETIR_STATION_VERSION: ${PETIR_STATION_VERSION:-2.0}
       PETIR_SITE_ID: ${PETIR_SITE_ID:-nelayan-sungailiat}
       PETIR_PUBLIC_DOMAIN: ${PETIR_PUBLIC_DOMAIN:-nelayan-sungailiat.petirlabs.com}
+      PETIR_RAIN_SEMANTICS: ${PETIR_RAIN_SEMANTICS:-rolling_1m_max}
     depends_on:
       server:
         condition: service_healthy

@@ -29,7 +29,7 @@ All edge timestamps are TEXT ISO-8601; central stores `timestamptz`.
 | humidity_pct | REAL | double precision | |
 | pressure_hpa | REAL | double precision | |
 | illuminance_lux | REAL | double precision | log-scale in UI |
-| rain_mm | REAL | double precision | |
+| rain_mm | REAL | double precision | WS3 field I: rolling rainfall over the trailing 1 minute; not an hourly/daily accumulated total |
 | wind_speed_ms | REAL | double precision | |
 | wind_dir_code | TEXT | text | |
 | wind_dir_deg | REAL | double precision | |
@@ -50,7 +50,7 @@ Key `(node_id, minute_utc, source, device)`. Cursor `change_seq`.
 | humidity | humidity_avg/min/max |
 | pressure | pressure_avg/min/max |
 | illuminance | illuminance_avg/min/max |
-| rain | rain_max |
+| rain | rain_max (maximum `rain_mm` rolling-1-minute reading in the summary minute/bucket; not an accumulated total) |
 | wind | wind_speed_avg, wind_speed_max, latest_wind_dir_deg |
 | timing | last_sample_ts_utc, updated_at_utc |
 

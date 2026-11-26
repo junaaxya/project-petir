@@ -2,6 +2,8 @@ import { MetricCard } from "./MetricCard";
 import { WindDirectionCard } from "./WindDirectionCard";
 import type { NodeStatus, WeatherLatestMinute } from "@/lib/types";
 import { isRealtimeUnavailable, realtimeSnapshotDetail } from "@/lib/realtime";
+import { useSiteConfig } from "@/components/common/SiteConfigProvider";
+import { rainOverviewLabel } from "@/lib/rainSemantics";
 
 interface OverviewGridProps {
   minute: WeatherLatestMinute | null | undefined;
@@ -10,6 +12,7 @@ interface OverviewGridProps {
 }
 
 export function OverviewGrid({ minute, loading, nodeStatus }: OverviewGridProps) {
+  const { rainSemantics } = useSiteConfig();
   const unavailable = isRealtimeUnavailable(nodeStatus);
   const detail = realtimeSnapshotDetail(nodeStatus, minute?.minute_utc);
   return (
@@ -47,7 +50,7 @@ export function OverviewGrid({ minute, loading, nodeStatus }: OverviewGridProps)
         emptyDetail={detail}
       />
       <MetricCard
-        label="Hujan"
+        label={rainOverviewLabel(rainSemantics)}
         value={unavailable ? null : minute?.rain_max}
         unit="mm"
         loading={loading}

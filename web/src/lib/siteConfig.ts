@@ -1,8 +1,11 @@
+import { DEFAULT_RAIN_SEMANTICS, parseRainSemantics, type RainSemantics } from "./rainSemantics";
+
 export const DEFAULT_SITE_CONFIG = {
   siteName: "PetirDashboard",
   stationVersion: "",
   siteId: "petir-dashboard",
   publicDomain: "",
+  rainSemantics: DEFAULT_RAIN_SEMANTICS,
 } as const;
 
 export type SiteConfig = {
@@ -10,6 +13,7 @@ export type SiteConfig = {
   stationVersion: string;
   siteId: string;
   publicDomain: string;
+  rainSemantics: RainSemantics;
 };
 
 type SiteEnvironment = {
@@ -18,6 +22,7 @@ type SiteEnvironment = {
   PETIR_STATION_VERSION?: string;
   PETIR_SITE_ID?: string;
   PETIR_PUBLIC_DOMAIN?: string;
+  PETIR_RAIN_SEMANTICS?: string;
 };
 
 function valueOrDefault(value: string | undefined, fallback: string): string {
@@ -42,6 +47,7 @@ export function getSiteConfig(env: SiteEnvironment = process.env): SiteConfig {
     stationVersion: valueOrDefault(env.PETIR_STATION_VERSION, DEFAULT_SITE_CONFIG.stationVersion),
     siteId: valueOrDefault(env.PETIR_SITE_ID, DEFAULT_SITE_CONFIG.siteId),
     publicDomain: normalizePublicDomain(env.PETIR_PUBLIC_DOMAIN),
+    rainSemantics: parseRainSemantics(env.PETIR_RAIN_SEMANTICS),
   };
 }
 

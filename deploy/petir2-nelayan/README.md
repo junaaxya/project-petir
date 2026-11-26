@@ -41,12 +41,21 @@ The frontend reads these public, non-secret variables at request time:
 - `PETIR_STATION_VERSION`
 - `PETIR_SITE_ID`
 - `PETIR_PUBLIC_DOMAIN` (hostname only, without scheme or path)
+- `PETIR_RAIN_SEMANTICS` (`rolling_1m_max` for the Petir 2 WS3 field-I contract)
 
 The Petir 2 template defaults to `Nelayan Sungailiat`, station `2.0`, site ID
 `nelayan-sungailiat`, and `nelayan-sungailiat.petirlabs.com`. When the variables
 are absent, the same image keeps the Petir 1-compatible `PetirDashboard`
 identity. Do not put credentials in these variables or rename them to
 `NEXT_PUBLIC_*`; the server passes only the resolved public identity to the UI.
+
+`rolling_1m_max` labels raw `rain_mm` as rolling rainfall over the trailing one
+minute and summary `rain_max` as the maximum rolling-one-minute reading in each
+selected bucket. Neither value is an hourly or daily accumulated total. The
+generic/Petir 1 deployment intentionally defaults to `legacy` when this variable
+is absent, so an existing station is never silently relabeled. This setting is
+read by the Next.js server at request time and passed to client components with
+the site configuration; rebuilding the image is not required to switch semantics.
 
 ## Static validation (safe in Phase 1)
 
