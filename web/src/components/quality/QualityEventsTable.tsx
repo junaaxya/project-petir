@@ -32,7 +32,7 @@ function fmtTs(ts: string | null): string {
   }) + " WIB";
 }
 
-function parseReasonCodes(codes: string | string[] | null): string[] {
+function parseReasonCodes(codes: string | string[] | null | undefined): string[] {
   if (!codes) return [];
   if (Array.isArray(codes)) return codes.filter(Boolean);
   try {

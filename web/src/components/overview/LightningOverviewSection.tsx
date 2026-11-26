@@ -104,9 +104,16 @@ export function LightningOverviewSection({ lightning, lightningLoading, nodeStat
           </div>
 
           <div className="rounded-xl border border-dashed border-[var(--color-border)] px-3 py-3 text-sm text-[var(--color-text-muted)]">
-            <span className="font-medium text-[var(--color-text)]">Tips cepat:</span> saat badge berubah dari
-            <span className="mx-1 font-medium text-green-400">Tenang</span>
-            ke status lain, pengguna bisa langsung melihat detail kejadiannya di bawah tanpa pindah halaman.
+            <span className="font-medium text-[var(--color-text)]">Tips cepat:</span>{" "}
+            {hasValidObservation ? (
+              <>
+                saat badge berubah dari
+                <span className="mx-1 font-medium text-green-400">Tenang</span>
+                ke status lain, pengguna bisa langsung melihat detail kejadiannya di bawah tanpa pindah halaman.
+              </>
+            ) : (
+              "status aktivitas hanya ditampilkan setelah sensor memiliki pengamatan yang valid."
+            )}
           </div>
         </Card>
 

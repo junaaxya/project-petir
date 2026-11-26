@@ -352,6 +352,54 @@ def test_quality_events_allows_long_ranges(client, session):
     assert r365.json()["summary"]["total_minutes"] == 6
 
 
+def test_quality_events_public_safe_redacts_internal_details(client, session):
+    from app.models.ops import WeatherQualityEvent
+
+    now = datetime.now(timezone.utc)
+    session.add(
+        WeatherQualityEvent(
+            node_id=NODE_ID,
+            db_epoch=uuid.uuid4(),
+            edge_id=987654,
+            ts_pi_utc=now,
+            minute_utc=now.replace(second=0, microsecond=0),
+            sample_ts_utc=now,
+            source="collector:/dev/serial/by-id/private-weather",
+            device="/dev/ttyUSB0",
+            quality_status="warn",
+            reason_codes='["internal_register_fault"]',
+            message="raw line and collector implementation detail",
+            details_json={"raw_line": "secret-wire-format", "register": "0x3f"},
+            created_at_utc=now,
+        )
+    )
+    session.commit()
+
+    response = client.get(
+        "/api/weather/quality-events",
+        params={
+            "from": (now - timedelta(minutes=1)).isoformat(),
+            "to": (now + timedelta(minutes=1)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["event_id"].startswith("evt_")
+    assert set(item) == {"event_id", "minute_utc", "quality_status", "created_at_utc"}
+    assert {
+        "edge_id",
+        "source",
+        "device",
+        "reason_codes",
+        "message",
+        "details_json",
+        "raw_line",
+        "register",
+    }.isdisjoint(item)
+
+
+
 def test_health_latest_reports_streams(client, session):
     _seed_summaries(session, count=3)
     r = client.get("/api/health/latest")

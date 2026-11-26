@@ -77,13 +77,32 @@ test.describe("rainfall semantics", () => {
 
     await page.goto("/");
     await expect(page.getByText("Maks. Hujan Rolling 1 Menit")).toBeVisible();
-    const lightningSection = page.getByRole("heading", { name: "Petir Saat Ini" }).locator("xpath=../..");
-    await expect(lightningSection.getByText("Belum ada pengamatan petir yang valid")).toBeVisible();
-    await expect(lightningSection.getByText("—", { exact: true })).toHaveCount(3);
   });
 });
 
 test.describe("honest lightning empty state", () => {
+  test("keeps the overview unavailable state distinct from quiet and zero", async ({ page }) => {
+    await routeApi(page, {
+      "/api/health/latest": {
+        station_status: "online",
+        data_availability: "available",
+        updated_at_utc: "2026-11-26T01:00:00Z",
+        freshness: [],
+        disruption: { active: false, level: "none" },
+      },
+      "/api/weather/latest": { node_id: "nelayan-1", minute: null },
+      "/api/lightning/latest": { node_id: "nelayan-1", minute: null },
+      "/api/lightning/events/latest": { node_id: "nelayan-1", items: [], meta: EMPTY_META },
+      "/api/forecast/daily": { node_id: "nelayan-1", items: [] },
+    });
+
+    await page.goto("/");
+    const section = page.getByRole("heading", { name: "Petir Saat Ini" }).locator("xpath=../../..");
+    await expect(section.getByText("Belum ada pengamatan petir yang valid")).toBeVisible();
+    await expect(section.getByText("—", { exact: true })).toHaveCount(3);
+    await expect(section.getByText("Tenang", { exact: true })).toHaveCount(0);
+  });
+
   test("keeps missing observations as unavailable rather than zero or quiet", async ({ page }) => {
     await routeApi(page, {
       "/api/health/latest": {

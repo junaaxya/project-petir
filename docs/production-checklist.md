@@ -112,7 +112,7 @@ BEFORE the first sync. The current contract (v2.1.0) is validated by the shared
 schema/Pydantic contract suite and remains major-version compatible with v2 edge workers.
 See [edge-schema-drift.md](./edge-schema-drift.md) for the earlier real-Pi validation.
 
-1. Confirm server is on contract **v2** (currently `CONTRACT_VERSION = 2.1.0`).
+1. Confirm server is on contract **v2** (currently `CONTRACT_VERSION = 2.2.0`).
 2. Edge ships with the v2 normalize layer (`healthy→ok`, `warning→warn`,
    `noisy→noise`, `active→activity`).
 3. Set `STRICT_FIRST_SYNC=true` in `edge/.env` before enabling the timer. This
